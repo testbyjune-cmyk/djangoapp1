@@ -1,0 +1,85 @@
+{% extends "core/tutorial_base.html" %}
+
+{% block lesson_content %}
+<p class="text-muted">
+    Claude Code는 "에이전트" 방식으로 동작합니다. 요청을 한 번에 다 풀지 않고,
+    <strong>도구 호출 → 결과 관찰 → 다음 행동 결정</strong>을 반복하며 스스로 계획을 조정합니다.
+</p>
+
+<h2 class="h6 mt-4">핵심 개념</h2>
+<ul>
+    <li><strong>메인 에이전트</strong>: 사용자와 직접 대화하며 전체 작업을 조율합니다.</li>
+    <li><strong>서브에이전트(Subagent)</strong>: 메인 에이전트가 독립적인 하위 작업을 위임하는 별도의 실행 단위입니다.
+        서브에이전트는 자기 컨텍스트 안에서 조사를 마친 뒤, <em>요약된 결과만</em> 메인 에이전트에게 돌려줍니다.</li>
+    <li><strong>왜 위임하나요?</strong>: 코드베이스 전체를 뒤지는 것 같은 큰 조사를 서브에이전트에게 맡기면,
+        방대한 중간 검색 결과가 메인 대화의 컨텍스트를 차지하지 않습니다. 메인 에이전트는 "결론"만 받아 깔끔하게 이어갑니다.</li>
+    <li><strong>대표 유형 예시</strong>: 읽기 전용 탐색에 특화된 유형, 설계/계획에 특화된 유형, 범용 유형 등 —
+        유형마다 사용할 수 있는 도구 범위가 다르게 구성됩니다.</li>
+</ul>
+
+<h2 class="h6 mt-4">언제 위임할까?</h2>
+<ul>
+    <li>여러 파일/여러 단계를 거쳐야 하는 열린 질문의 조사</li>
+    <li>서로 독립적이라 병렬로 처리해도 되는 작업</li>
+    <li>중간 결과가 방대해서 메인 컨텍스트에 남기고 싶지 않은 검색</li>
+</ul>
+<p class="text-muted small">
+    반대로 대상이 이미 명확한 파일 하나를 수정하는 등 간단한 작업은 위임 없이 메인 에이전트가 바로 처리하는 것이 더 빠릅니다.
+</p>
+
+<h2 class="h6 mt-4">직접 해보기: 위임 흐름 시뮬레이션</h2>
+<p class="text-muted small">아래 버튼을 눌러 한 단계씩 진행해보세요.</p>
+
+<div class="border rounded p-3 bg-light">
+    <div id="flow-steps" class="d-flex flex-column gap-2 mb-3"></div>
+    <button type="button" id="flow-next" class="btn btn-primary btn-sm">다음 단계 ▶</button>
+    <button type="button" id="flow-reset" class="btn btn-outline-secondary btn-sm">처음부터</button>
+</div>
+
+<script>
+(function () {
+    const STEPS = [
+        { actor: "사용자", text: "\"이 프로젝트에서 인증 로직이 어디에 흩어져 있는지 찾아줘\"" },
+        { actor: "메인 에이전트", text: "범위가 넓은 탐색 작업이라 판단 → 서브에이전트(Explore)에게 위임" },
+        { actor: "서브에이전트", text: "여러 파일을 검색/열람하며 조사 진행 중... (중간 과정은 메인 컨텍스트에 쌓이지 않음)" },
+        { actor: "서브에이전트", text: "조사 완료 → \"인증 로직은 auth/, middleware/session.py 3곳에 있음\" 요약 반환" },
+        { actor: "메인 에이전트", text: "요약을 받아 사용자에게 결과를 정리해서 답변" },
+    ];
+
+    const container = document.getElementById("flow-steps");
+    const nextBtn = document.getElementById("flow-next");
+    const resetBtn = document.getElementById("flow-reset");
+    let shown = 0;
+
+    const actorClass = {
+        "사용자": "primary",
+        "메인 에이전트": "dark",
+        "서브에이전트": "success",
+    };
+
+    function render() {
+        nextBtn.disabled = shown >= STEPS.length;
+        nextBtn.textContent = shown >= STEPS.length ? "완료 ✓" : "다음 단계 ▶";
+    }
+
+    nextBtn.addEventListener("click", () => {
+        if (shown >= STEPS.length) return;
+        const step = STEPS[shown];
+        const row = document.createElement("div");
+        row.className = "p-2 bg-white border rounded";
+        row.innerHTML = `<span class="badge bg-${actorClass[step.actor]}">${step.actor}</span> ${step.text}`;
+        container.appendChild(row);
+        shown += 1;
+        render();
+    });
+
+    resetBtn.addEventListener("click", () => {
+        container.innerHTML = "";
+        shown = 0;
+        render();
+    });
+
+    render();
+})();
+</script>
+{% endblock %}

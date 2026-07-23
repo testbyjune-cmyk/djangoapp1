@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block title %}{{ module_title }} - Claude Tutorial{% endblock %}
+
+{% block content %}
+<div class="p-4 bg-white rounded shadow-sm">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <span class="badge bg-secondary">STEP {{ step_index }} / {{ step_total }}</span>
+        <div class="progress" style="width: 150px; height: 8px;">
+            <div class="progress-bar" role="progressbar"
+                 style="width: {% widthratio step_index step_total 100 %}%"></div>
+        </div>
+    </div>
+
+    <h1 class="h4 mb-3">{{ module_icon }} {{ module_title }}</h1>
+
+    {% block lesson_content %}{% endblock %}
+
+    <div class="d-flex justify-content-between align-items-center mt-4 pt-3 border-top">
+        <div>
+            {% if prev_item %}
+            <a href="{% url prev_item.url_name %}" class="btn btn-outline-secondary btn-sm">← {{ prev_item.label }}</a>
+            {% endif %}
+        </div>
+        <button type="button"
+                class="btn btn-sm {% if is_completed %}btn-success{% else %}btn-outline-success{% endif %}"
+                data-progress-toggle="{{ module_app_label }}">
+            <span class="toggle-label">{% if is_completed %}✓ 완료됨{% else %}완료로 표시{% endif %}</span>
+        </button>
+        <div>
+            {% if next_item %}
+            <a href="{% url next_item.url_name %}" class="btn btn-primary btn-sm">{{ next_item.label }} →</a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

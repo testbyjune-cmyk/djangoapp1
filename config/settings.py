@@ -39,8 +39,10 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "core",
-    "currency_calculator",
-    "engineering_calculator",
+    "tutorial_agents",
+    "tutorial_tools",
+    "tutorial_worktree",
+    "tutorial_skills",
 ]
 
 MIDDLEWARE = [

@@ -1,0 +1,97 @@
+{% extends "core/tutorial_base.html" %}
+
+{% block lesson_content %}
+<p class="text-muted">
+    Git worktree는 하나의 저장소(<code>.git</code>)를 공유하면서, 여러 개의
+    <strong>독립된 작업 디렉터리</strong>를 동시에 체크아웃할 수 있게 해줍니다.
+    브랜치를 바꾸려고 현재 작업을 stash 할 필요가 없습니다.
+</p>
+
+<h2 class="h6 mt-4">핵심 개념</h2>
+<ul>
+    <li><strong>메인 작업트리</strong>: 평소 작업하는 폴더. 지금 보고 있는 파일들이 여기 있습니다.</li>
+    <li><strong>워크트리(격리 공간)</strong>: 별도 브랜치를 가리키는 또 다른 폴더. 여기서 변경해도 메인 작업트리는 전혀 영향받지 않습니다.</li>
+    <li><strong>왜 필요한가</strong>: 위험하거나 실험적인 변경(대규모 리팩터링, 여러 대안 비교)을 시도할 때,
+        현재 작업 내용을 건드리지 않고 안전하게 실험한 뒤 마음에 들면 병합할 수 있습니다.</li>
+    <li><strong>병렬 작업</strong>: 서로 다른 작업트리에서 독립적인 작업을 동시에 진행할 수 있어, 여러 실험을 병렬로 돌릴 수 있습니다.</li>
+</ul>
+
+<h2 class="h6 mt-4">직접 해보기: 격리 모드 켜고 끄기</h2>
+<p class="text-muted small">
+    아래 스위치를 눌러 "격리 모드"를 켜면, 변경 사항이 메인 작업트리와 분리된 별도 공간에서 일어나는 모습을 볼 수 있습니다.
+</p>
+
+<div class="form-check form-switch mb-3">
+    <input class="form-check-input" type="checkbox" role="switch" id="isolation-switch">
+    <label class="form-check-label" for="isolation-switch">워크트리 격리 모드</label>
+</div>
+
+<div class="row g-3">
+    <div class="col-12 col-md-6">
+        <div class="border rounded p-3 h-100">
+            <div class="fw-bold mb-2">📁 메인 작업트리 <span class="badge bg-secondary">main</span></div>
+            <ul id="main-files" class="small mb-0"></ul>
+        </div>
+    </div>
+    <div class="col-12 col-md-6">
+        <div id="worktree-box" class="border rounded p-3 h-100 d-none" style="border-style: dashed !important;">
+            <div class="fw-bold mb-2">📁 워크트리 <span class="badge bg-warning text-dark">feature/experiment</span></div>
+            <ul id="worktree-files" class="small mb-2"></ul>
+            <button type="button" id="merge-btn" class="btn btn-sm btn-outline-success">← 마음에 들면 main에 병합</button>
+        </div>
+        <div id="worktree-off-msg" class="border rounded p-3 h-100 text-muted small d-flex align-items-center">
+            격리 모드가 꺼져 있으면, 실험적인 변경도 메인 작업트리에 바로 반영됩니다.
+        </div>
+    </div>
+</div>
+<div id="merge-msg" class="alert alert-success mt-2 d-none py-2 small"></div>
+
+<script>
+(function () {
+    const isolationSwitch = document.getElementById("isolation-switch");
+    const worktreeBox = document.getElementById("worktree-box");
+    const worktreeOffMsg = document.getElementById("worktree-off-msg");
+    const mainFiles = document.getElementById("main-files");
+    const worktreeFiles = document.getElementById("worktree-files");
+    const mergeBtn = document.getElementById("merge-btn");
+    const mergeMsg = document.getElementById("merge-msg");
+
+    const BASE_FILES = ["app.py", "models.py", "views.py"];
+    const EXPERIMENT_FILE = "models.py (실험적 리팩터링)";
+
+    function renderMain(withExperiment) {
+        mainFiles.innerHTML = BASE_FILES
+            .map((f) => `<li>${withExperiment && f === "models.py" ? EXPERIMENT_FILE : f}</li>`)
+            .join("");
+    }
+
+    function renderWorktree() {
+        worktreeFiles.innerHTML = BASE_FILES
+            .map((f) => `<li>${f === "models.py" ? EXPERIMENT_FILE : f}</li>`)
+            .join("");
+    }
+
+    isolationSwitch.addEventListener("change", () => {
+        mergeMsg.classList.add("d-none");
+        if (isolationSwitch.checked) {
+            worktreeBox.classList.remove("d-none");
+            worktreeOffMsg.classList.add("d-none");
+            renderMain(false);
+            renderWorktree();
+        } else {
+            worktreeBox.classList.add("d-none");
+            worktreeOffMsg.classList.remove("d-none");
+            renderMain(false);
+        }
+    });
+
+    mergeBtn.addEventListener("click", () => {
+        renderMain(true);
+        mergeMsg.textContent = "✅ 워크트리에서의 변경이 메인 작업트리로 병합되었습니다.";
+        mergeMsg.classList.remove("d-none");
+    });
+
+    renderMain(false);
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,101 @@
+{% extends "core/tutorial_base.html" %}
+
+{% block lesson_content %}
+<p class="text-muted">
+    Claude Code는 만능 셸 하나가 아니라, 목적별로 나뉜 <strong>전용 도구</strong>를 사용합니다.
+    전용 도구는 결과가 더 예측 가능하고, 실수를 미리 막아줍니다.
+</p>
+
+<h2 class="h6 mt-4">상황 → 추천 도구</h2>
+<div class="table-responsive">
+<table class="table table-sm">
+    <thead><tr><th>하고 싶은 일</th><th>도구</th><th>왜</th></tr></thead>
+    <tbody>
+        <tr><td>파일 하나의 전체 내용 보기</td><td><code>Read</code></td><td>파일 읽기에 특화, 줄 번호 포함 출력</td></tr>
+        <tr><td>기존 파일의 일부만 수정</td><td><code>Edit</code></td><td>정확한 부분만 치환, 전체 재작성 방지</td></tr>
+        <tr><td>새 파일 작성</td><td><code>Write</code></td><td>새로 만들거나 완전히 덮어쓸 때만 사용</td></tr>
+        <tr><td>특정 코드/문자열이 있는 위치 찾기</td><td><code>Grep</code></td><td>내용 기반 검색에 최적화</td></tr>
+        <tr><td>이름 패턴으로 파일 찾기</td><td><code>Glob</code></td><td><code>*.test.js</code> 같은 경로 패턴 매칭</td></tr>
+        <tr><td>셸 명령 실행 (npm, git 등)</td><td><code>Bash</code></td><td>find/grep/cat 등은 위 전용 도구로 대체</td></tr>
+    </tbody>
+</table>
+</div>
+
+<h2 class="h6 mt-4">직접 해보기: 어떤 도구를 쓸까요?</h2>
+<p class="text-muted small">문항마다 답을 고르면 바로 맞았는지 알려줍니다.</p>
+
+<div id="quiz"></div>
+
+<script>
+(function () {
+    const QUESTIONS = [
+        {
+            scenario: "프로젝트 전체에서 'handleSubmit' 이라는 함수가 어느 파일에 있는지 찾고 싶다.",
+            options: ["Read", "Grep", "Write", "Bash"],
+            answer: "Grep",
+            why: "내용(문자열) 기반 검색은 Grep이 grep 명령보다 더 안전하고 결과가 구조화되어 있습니다.",
+        },
+        {
+            scenario: "config.py 파일 하나를 처음부터 끝까지 확인하고 싶다.",
+            options: ["Read", "Glob", "Edit", "Bash"],
+            answer: "Read",
+            why: "파일 전체를 살펴볼 때는 Read가 줄 번호와 함께 정확히 보여줍니다.",
+        },
+        {
+            scenario: "settings.py에서 DEBUG 값 한 줄만 True에서 False로 바꾸고 싶다.",
+            options: ["Write", "Edit", "Bash", "Glob"],
+            answer: "Edit",
+            why: "파일 전체를 다시 쓰지 않고 필요한 부분만 정확히 치환할 때는 Edit이 안전합니다.",
+        },
+        {
+            scenario: "'*.test.js' 패턴에 맞는 모든 테스트 파일 경로를 모으고 싶다.",
+            options: ["Grep", "Read", "Glob", "Write"],
+            answer: "Glob",
+            why: "이름/경로 패턴으로 파일을 찾을 때는 Glob이 find보다 적합합니다.",
+        },
+    ];
+
+    const quizEl = document.getElementById("quiz");
+
+    QUESTIONS.forEach((q, qi) => {
+        const card = document.createElement("div");
+        card.className = "border rounded p-3 mb-3 bg-light";
+
+        const optionsHtml = q.options
+            .map(
+                (opt) => `
+                <button type="button" class="btn btn-outline-primary btn-sm me-2 mb-2 opt-btn" data-answer="${opt}">
+                    ${opt}
+                </button>`
+            )
+            .join("");
+
+        card.innerHTML = `
+            <div class="mb-2"><strong>Q${qi + 1}.</strong> ${q.scenario}</div>
+            <div class="options">${optionsHtml}</div>
+            <div class="feedback small mt-2"></div>
+        `;
+
+        card.querySelectorAll(".opt-btn").forEach((btn) => {
+            btn.addEventListener("click", () => {
+                const feedback = card.querySelector(".feedback");
+                const chosen = btn.dataset.answer;
+                const correct = chosen === q.answer;
+
+                card.querySelectorAll(".opt-btn").forEach((b) => {
+                    b.classList.remove("btn-success", "btn-danger", "btn-outline-primary");
+                    b.classList.add(b.dataset.answer === q.answer ? "btn-success" : "btn-outline-secondary");
+                });
+
+                feedback.innerHTML = correct
+                    ? `✅ 정답입니다! ${q.why}`
+                    : `❌ 아쉬워요. 정답은 <strong>${q.answer}</strong>입니다. ${q.why}`;
+                feedback.className = "feedback small mt-2 " + (correct ? "text-success" : "text-danger");
+            });
+        });
+
+        quizEl.appendChild(card);
+    });
+})();
+</script>
+{% endblock %}
