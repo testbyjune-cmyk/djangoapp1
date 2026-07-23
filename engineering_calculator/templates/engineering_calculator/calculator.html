@@ -1,0 +1,306 @@
+{% extends "base.html" %}
+
+{% block title %}공학 계산기 - 공항 계산기{% endblock %}
+
+{% block content %}
+<div class="p-4 bg-white rounded shadow-sm">
+    <h1 class="h4 mb-1">공학 계산기</h1>
+    <p class="text-muted small mb-3">
+        삼각함수, 로그, 거듭제곱 등 공학용 연산을 지원합니다.
+    </p>
+
+    {% csrf_token %}
+
+    <div class="calc-wrapper">
+        <div class="calc-status d-flex justify-content-between align-items-center mb-2">
+            <button type="button" id="angle-toggle" class="btn btn-sm btn-outline-secondary" aria-label="각도 단위 전환">
+                DEG
+            </button>
+            <span id="error-text" class="text-danger small" role="alert"></span>
+        </div>
+
+        <div class="calc-display bg-dark text-white rounded p-3 mb-3">
+            <div id="expression" class="text-end small text-white-50" style="min-height: 1.2em;"></div>
+            <div id="display" class="text-end fs-2 text-truncate">0</div>
+        </div>
+
+        <div class="calc-grid">
+            <button type="button" class="btn btn-light" data-action="function" data-op="sin">sin</button>
+            <button type="button" class="btn btn-light" data-action="function" data-op="cos">cos</button>
+            <button type="button" class="btn btn-light" data-action="function" data-op="tan">tan</button>
+            <button type="button" class="btn btn-outline-danger" data-action="clear">C</button>
+            <button type="button" class="btn btn-outline-secondary" data-action="backspace">⌫</button>
+
+            <button type="button" class="btn btn-light" data-action="function" data-op="asin">sin⁻¹</button>
+            <button type="button" class="btn btn-light" data-action="function" data-op="acos">cos⁻¹</button>
+            <button type="button" class="btn btn-light" data-action="function" data-op="atan">tan⁻¹</button>
+            <button type="button" class="btn btn-light" data-action="function" data-op="log10">log</button>
+            <button type="button" class="btn btn-light" data-action="function" data-op="ln">ln</button>
+
+            <button type="button" class="btn btn-light" data-action="function" data-op="sqrt">√x</button>
+            <button type="button" class="btn btn-light" data-action="function" data-op="square">x²</button>
+            <button type="button" class="btn btn-light" data-action="function" data-op="cube">x³</button>
+            <button type="button" class="btn btn-light" data-action="operator" data-op="power">xʸ</button>
+            <button type="button" class="btn btn-light" data-action="function" data-op="reciprocal">1/x</button>
+
+            <button type="button" class="btn btn-light" data-action="constant" data-value="3.14159265358979">π</button>
+            <button type="button" class="btn btn-light" data-action="constant" data-value="2.71828182845905">e</button>
+            <button type="button" class="btn btn-light" data-action="function" data-op="factorial">x!</button>
+            <button type="button" class="btn btn-light" data-action="function" data-op="percent">%</button>
+            <button type="button" class="btn btn-outline-secondary" data-action="negate">+/-</button>
+
+            <button type="button" class="btn btn-outline-primary" data-action="digit" data-value="7">7</button>
+            <button type="button" class="btn btn-outline-primary" data-action="digit" data-value="8">8</button>
+            <button type="button" class="btn btn-outline-primary" data-action="digit" data-value="9">9</button>
+            <button type="button" class="btn btn-secondary" data-action="operator" data-op="divide">÷</button>
+            <button type="button" class="btn btn-secondary" data-action="operator" data-op="multiply">×</button>
+
+            <button type="button" class="btn btn-outline-primary" data-action="digit" data-value="4">4</button>
+            <button type="button" class="btn btn-outline-primary" data-action="digit" data-value="5">5</button>
+            <button type="button" class="btn btn-outline-primary" data-action="digit" data-value="6">6</button>
+            <button type="button" class="btn btn-secondary" data-action="operator" data-op="subtract">−</button>
+            <button type="button" class="btn btn-secondary" data-action="operator" data-op="add">+</button>
+
+            <button type="button" class="btn btn-outline-primary" data-action="digit" data-value="1">1</button>
+            <button type="button" class="btn btn-outline-primary" data-action="digit" data-value="2">2</button>
+            <button type="button" class="btn btn-outline-primary" data-action="digit" data-value="3">3</button>
+            <button type="button" class="btn btn-outline-primary" data-action="digit" data-value="0">0</button>
+            <button type="button" class="btn btn-outline-primary" data-action="dot">.</button>
+
+            <button type="button" class="btn btn-primary calc-equals" data-action="equals">=</button>
+        </div>
+    </div>
+</div>
+
+<style>
+    .calc-display #display { word-break: break-all; }
+    .calc-grid {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 0.4rem;
+    }
+    .calc-grid button { padding: 0.6rem 0.25rem; font-size: 0.95rem; }
+    .calc-equals { grid-column: span 5; font-size: 1.2rem; }
+</style>
+
+<script>
+(function () {
+    const csrfToken = document.querySelector('input[name="csrfmiddlewaretoken"]').value;
+    const API_URL = "{% url 'engineering_calculator:calculate_api' %}";
+
+    const displayEl = document.getElementById("display");
+    const expressionEl = document.getElementById("expression");
+    const errorEl = document.getElementById("error-text");
+    const angleToggleBtn = document.getElementById("angle-toggle");
+
+    const OPERATOR_LABELS = {
+        add: "+", subtract: "−", multiply: "×", divide: "÷", power: "xʸ",
+    };
+
+    const state = {
+        current: "0",
+        accumulator: null,
+        operator: null,
+        angleMode: "deg",
+        overwrite: true,
+    };
+
+    function render() {
+        displayEl.textContent = state.current;
+        if (state.operator && state.accumulator !== null) {
+            expressionEl.textContent = `${formatNumber(state.accumulator)} ${OPERATOR_LABELS[state.operator]}`;
+        } else {
+            expressionEl.textContent = "";
+        }
+    }
+
+    function formatNumber(value) {
+        const rounded = Number(Number(value).toPrecision(12));
+        return rounded.toString();
+    }
+
+    function clearError() {
+        errorEl.textContent = "";
+    }
+
+    function showError(message) {
+        errorEl.textContent = message;
+        state.current = "0";
+        state.accumulator = null;
+        state.operator = null;
+        state.overwrite = true;
+        render();
+    }
+
+    async function callApi(operator, operands) {
+        const response = await fetch(API_URL, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRFToken": csrfToken,
+            },
+            body: JSON.stringify({ operator, operands, angle_mode: state.angleMode }),
+        });
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.error || "계산할 수 없습니다.");
+        }
+        return data.result;
+    }
+
+    function inputDigit(digit) {
+        clearError();
+        if (state.overwrite) {
+            state.current = digit;
+            state.overwrite = false;
+        } else if (state.current === "0") {
+            state.current = digit;
+        } else {
+            state.current += digit;
+        }
+        render();
+    }
+
+    function inputDot() {
+        clearError();
+        if (state.overwrite) {
+            state.current = "0.";
+            state.overwrite = false;
+            render();
+            return;
+        }
+        if (!state.current.includes(".")) {
+            state.current += ".";
+            render();
+        }
+    }
+
+    function clearAll() {
+        clearError();
+        state.current = "0";
+        state.accumulator = null;
+        state.operator = null;
+        state.overwrite = true;
+        render();
+    }
+
+    function backspace() {
+        clearError();
+        if (state.overwrite) return;
+        state.current = state.current.length > 1 ? state.current.slice(0, -1) : "0";
+        if (state.current === "-") state.current = "0";
+        render();
+    }
+
+    function negate() {
+        clearError();
+        if (state.current === "0") return;
+        state.current = state.current.startsWith("-") ? state.current.slice(1) : "-" + state.current;
+        render();
+    }
+
+    function toggleAngleMode() {
+        state.angleMode = state.angleMode === "deg" ? "rad" : "deg";
+        angleToggleBtn.textContent = state.angleMode.toUpperCase();
+    }
+
+    async function applyOperator(operatorCode) {
+        clearError();
+        const value = parseFloat(state.current);
+        if (state.operator && state.accumulator !== null && !state.overwrite) {
+            try {
+                const result = await callApi(state.operator, [state.accumulator, value]);
+                state.accumulator = result;
+                state.current = formatNumber(result);
+            } catch (err) {
+                showError(err.message);
+                return;
+            }
+        } else {
+            state.accumulator = value;
+        }
+        state.operator = operatorCode;
+        state.overwrite = true;
+        render();
+    }
+
+    async function applyEquals() {
+        clearError();
+        if (state.operator === null || state.accumulator === null) return;
+        const value = parseFloat(state.current);
+        try {
+            const result = await callApi(state.operator, [state.accumulator, value]);
+            state.current = formatNumber(result);
+        } catch (err) {
+            showError(err.message);
+            return;
+        }
+        state.accumulator = null;
+        state.operator = null;
+        state.overwrite = true;
+        render();
+    }
+
+    async function applyFunction(operatorCode) {
+        clearError();
+        const value = parseFloat(state.current);
+        try {
+            const result = await callApi(operatorCode, [value]);
+            state.current = formatNumber(result);
+            state.overwrite = true;
+            render();
+        } catch (err) {
+            showError(err.message);
+        }
+    }
+
+    function applyConstant(value) {
+        clearError();
+        state.current = formatNumber(parseFloat(value));
+        state.overwrite = true;
+        render();
+    }
+
+    document.querySelectorAll("[data-action]").forEach((button) => {
+        button.addEventListener("click", () => {
+            const action = button.dataset.action;
+            switch (action) {
+                case "digit":
+                    inputDigit(button.dataset.value);
+                    break;
+                case "dot":
+                    inputDot();
+                    break;
+                case "clear":
+                    clearAll();
+                    break;
+                case "backspace":
+                    backspace();
+                    break;
+                case "negate":
+                    negate();
+                    break;
+                case "operator":
+                    applyOperator(button.dataset.op);
+                    break;
+                case "equals":
+                    applyEquals();
+                    break;
+                case "function":
+                    applyFunction(button.dataset.op);
+                    break;
+                case "constant":
+                    applyConstant(button.dataset.value);
+                    break;
+                default:
+                    break;
+            }
+        });
+    });
+
+    angleToggleBtn.addEventListener("click", toggleAngleMode);
+
+    render();
+})();
+</script>
+{% endblock %}
