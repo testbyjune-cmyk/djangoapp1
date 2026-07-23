@@ -8,4 +8,4 @@ class CoreConfig(AppConfig):
     def ready(self):
         from .navigation import register
 
-        register("홈", "core:home", order=0)
+        register("설정", "core:settings", app_label="core", order=999)

@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}설정 - 계산기 앱{% endblock %}
+
+{% block content %}
+<div class="p-4 bg-white rounded shadow-sm">
+    <h1 class="h4 mb-1">설정</h1>
+    <p class="text-muted small mb-4">
+        사용하지 않는 계산기 앱은 꺼서 메뉴에서 숨길 수 있습니다.
+    </p>
+
+    <form method="post">
+        {% csrf_token %}
+        <ul class="list-group mb-3">
+            {% for entry in apps %}
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+                <span>{{ entry.item.label }}</span>
+                <div class="form-check form-switch mb-0">
+                    <input
+                        class="form-check-input app-toggle"
+                        type="checkbox"
+                        role="switch"
+                        id="enabled__{{ entry.item.app_label }}"
+                        name="enabled__{{ entry.item.app_label }}"
+                        {% if entry.enabled %}checked{% endif %}
+                    >
+                    <label class="form-check-label toggle-state" for="enabled__{{ entry.item.app_label }}">
+                        {% if entry.enabled %}사용 중{% else %}꺼짐{% endif %}
+                    </label>
+                </div>
+            </li>
+            {% empty %}
+            <li class="list-group-item text-muted">켜고 끌 수 있는 앱이 없습니다.</li>
+            {% endfor %}
+        </ul>
+        <button type="submit" class="btn btn-primary">저장</button>
+    </form>
+</div>
+
+<script>
+document.querySelectorAll(".app-toggle").forEach((checkbox) => {
+    checkbox.addEventListener("change", () => {
+        const label = checkbox.closest(".form-switch").querySelector(".toggle-state");
+        label.textContent = checkbox.checked ? "사용 중" : "꺼짐";
+    });
+});
+</script>
+{% endblock %}

@@ -8,4 +8,9 @@ class CurrencyCalculatorConfig(AppConfig):
     def ready(self):
         from core.navigation import register
 
-        register("환율 계산기", "currency_calculator:calculator", order=10)
+        register(
+            "환율 계산기",
+            "currency_calculator:calculator",
+            app_label="currency_calculator",
+            order=10,
+        )

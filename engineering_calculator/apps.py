@@ -8,4 +8,9 @@ class EngineeringCalculatorConfig(AppConfig):
     def ready(self):
         from core.navigation import register
 
-        register("공학 계산기", "engineering_calculator:calculator", order=20)
+        register(
+            "공학 계산기",
+            "engineering_calculator:calculator",
+            app_label="engineering_calculator",
+            order=5,
+        )
