@@ -9,39 +9,55 @@
     <style>
         body { background-color: #f7f9fb; }
         .navbar-brand { font-weight: 600; }
-        main { max-width: 860px; }
+        .content-area { max-width: 860px; }
+        @media (min-width: 768px) {
+            .sidebar { min-height: calc(100vh - 56px); }
+        }
+        .sidebar .nav-link { color: #495057; border-radius: .375rem; }
+        .sidebar .nav-link:hover { background-color: #eef1f4; }
+        .sidebar .nav-link.active { color: #fff; background-color: var(--bs-primary); font-weight: 600; }
         code { color: #d6336c; }
     </style>
 </head>
 <body>
-<nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
-    <div class="container">
-        <a class="navbar-brand" href="{% url 'core:home' %}">🧠 Claude Tutorial</a>
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navMenu"
-                aria-controls="navMenu" aria-expanded="false" aria-label="메뉴 열기/닫기">
-            <span class="navbar-toggler-icon"></span>
-        </button>
-        <div class="collapse navbar-collapse" id="navMenu">
-            <ul class="navbar-nav ms-auto">
-                {% for item in nav_items %}
-                <li class="nav-item">
-                    <a class="nav-link {% if request.resolver_match.view_name == item.url_name %}active fw-bold{% endif %}"
-                       href="{% url item.url_name %}">{{ item.label }}</a>
-                </li>
-                {% endfor %}
-            </ul>
-        </div>
+<nav class="navbar navbar-dark bg-primary mb-0">
+    <div class="container-fluid">
+        <a class="navbar-brand mb-0" href="{% url 'core:home' %}">🧠 Claude Tutorial</a>
+        {% for item in nav_items %}
+        {% if item.app_label == "core" %}
+        <a class="nav-link text-white {% if request.resolver_match.view_name == item.url_name %}fw-bold{% endif %}"
+           href="{% url item.url_name %}">{{ item.label }}</a>
+        {% endif %}
+        {% endfor %}
     </div>
 </nav>
 
-<main class="container">
-    {% if messages %}
-        {% for message in messages %}
-            <div class="alert alert-{{ message.tags }}">{{ message }}</div>
-        {% endfor %}
-    {% endif %}
-    {% block content %}{% endblock %}
-</main>
+<div class="container-fluid">
+    <div class="row">
+        <aside class="col-12 col-md-3 col-lg-2 sidebar bg-white border-end py-3 mb-3 mb-md-0">
+            <div class="text-muted small text-uppercase fw-bold px-2 mb-2">카테고리</div>
+            <nav class="nav flex-column gap-1">
+                {% for item in nav_items %}
+                {% if item.app_label != "core" %}
+                <a class="nav-link px-2 py-2 {% if request.resolver_match.view_name == item.url_name %}active{% endif %}"
+                   href="{% url item.url_name %}">{{ item.label }}</a>
+                {% endif %}
+                {% endfor %}
+            </nav>
+        </aside>
+
+        <main class="col-12 col-md-9 col-lg-10 py-4">
+            <div class="content-area">
+                {% if messages %}
+                    {% for message in messages %}
+                        <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+                    {% endfor %}
+                {% endif %}
+                {% block content %}{% endblock %}
+            </div>
+        </main>
+    </div>
+</div>
 
 <form id="csrf-form" style="display:none">{% csrf_token %}</form>
 
