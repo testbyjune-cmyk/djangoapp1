@@ -1,0 +1,194 @@
+{% extends "core/tutorial_base.html" %}
+
+{% block lesson_content %}
+<p class="text-muted">
+    <strong>MCP(Model Context Protocol)</strong>는 Claude 같은 AI가 외부 도구·데이터소스에 연결하는 방법을 표준화한 개방형 프로토콜입니다.
+    한 번 만든 MCP 서버는 Claude Code뿐 아니라 이 프로토콜을 지원하는 다른 클라이언트에서도 그대로 재사용할 수 있습니다.
+</p>
+
+<h2 class="h6 mt-4">핵심 개념</h2>
+<ul>
+    <li><strong>MCP 서버</strong>: 도구(함수 호출)·리소스(파일/데이터)·프롬프트를 제공하는 독립 프로그램입니다.
+        로컬에서 실행되는 커맨드일 수도, 원격 HTTP 엔드포인트일 수도 있습니다.</li>
+    <li><strong>MCP 클라이언트</strong>: Claude Code가 클라이언트 역할을 하며, 연결된 MCP 서버가 제공하는 도구를
+        마치 내장 도구처럼 호출합니다.</li>
+    <li><strong>왜 표준화가 중요한가</strong>: MCP 서버는 특정 AI 제품에 묶이지 않는 독립적인 확장 단위입니다.
+        핵심 시스템(Claude Code 본체)을 수정하지 않고도 새로운 능력을 붙였다 뗐다 할 수 있어, 스킬·서브에이전트와 마찬가지로
+        플러그인 구조의 한 축을 이룹니다.</li>
+    <li><strong>스킬/서브에이전트와의 차이</strong>: 스킬은 "절차", 서브에이전트는 "격리된 실행 단위"인 반면,
+        MCP는 <em>"바깥 세상과 연결되는 통로"</em>입니다 — 사내 DB, 이슈 트래커, 브라우저, 사내 API 등 Claude Code가
+        원래 접근할 수 없던 시스템에 다리를 놓습니다.</li>
+</ul>
+
+<h2 class="h6 mt-4">MCP 서버 추가/설정하기</h2>
+<p class="text-muted small">범위(scope)에 따라 세 가지 방식이 있습니다. 탭을 눌러 비교해보세요.</p>
+
+<div class="d-flex flex-wrap gap-1 mb-2" id="mcp-scope-tabs">
+    <button type="button" class="btn btn-sm btn-primary mcp-scope-btn" data-scope="local">① 로컬 서버 (stdio)</button>
+    <button type="button" class="btn btn-sm btn-outline-secondary mcp-scope-btn" data-scope="remote">② 원격 서버 (HTTP/SSE)</button>
+    <button type="button" class="btn btn-sm btn-outline-secondary mcp-scope-btn" data-scope="project">③ 팀과 공유 (.mcp.json)</button>
+</div>
+
+<div id="mcp-scope-panel" class="border rounded p-3 bg-light"></div>
+
+<script>
+(function () {
+    const SCOPE_PANELS = {
+        local: {
+            when: "내 컴퓨터에서만 실행되는 프로그램(커맨드)을 MCP 서버로 붙이고 싶을 때. 가장 흔한 방식입니다.",
+            code: `claude mcp add my-server -- node ./mcp-servers/my-server.js
+
+# 연결된 서버 목록 확인
+claude mcp list
+
+# 더 이상 필요 없으면 제거
+claude mcp remove my-server`,
+            note: "-- 뒤에 실제 서버를 실행하는 커맨드를 그대로 적습니다. Claude Code가 이 프로세스를 띄우고 표준입출력(stdio)으로 통신합니다.",
+        },
+        remote: {
+            when: "이미 어딘가에 호스팅되어 있는 MCP 서버(팀 내부 API, 사내 서비스 등)에 URL로 붙고 싶을 때.",
+            code: `claude mcp add --transport http my-remote-server https://mcp.example.com/endpoint
+
+# 인증 헤더가 필요하면
+claude mcp add --transport http my-remote-server https://mcp.example.com/endpoint \\
+  --header "Authorization: Bearer $TOKEN"`,
+            note: "로컬 프로세스를 실행하지 않고 HTTP(SSE) 엔드포인트에 직접 연결합니다. 토큰 같은 비밀값은 명령에 직접 박아 넣지 말고 환경변수로 주입하세요.",
+        },
+        project: {
+            when: "팀원 전체가 같은 MCP 서버 설정을 쓰게 하고 싶을 때 — 저장소에 커밋해서 공유합니다.",
+            code: `claude mcp add --scope project shared-tools -- python mcp_servers/shared_tools.py
+
+# 위 명령이 프로젝트 루트에 .mcp.json을 생성/수정합니다.
+git add .mcp.json
+git commit -m "Add shared MCP server config"`,
+            note: "--scope project로 추가하면 사용자 개인 설정이 아니라 프로젝트의 .mcp.json에 기록됩니다. 이 파일을 커밋하면 저장소를 clone한 모든 팀원이 같은 MCP 서버를 자동으로 쓰게 됩니다.",
+        },
+    };
+
+    const scopeButtons = document.querySelectorAll(".mcp-scope-btn");
+    const scopePanel = document.getElementById("mcp-scope-panel");
+
+    function renderScopePanel(key) {
+        const p = SCOPE_PANELS[key];
+        scopePanel.innerHTML = `
+            <p class="small mb-2"><strong>언제 쓰나요?</strong> ${p.when}</p>
+            <pre class="bg-dark text-light p-2 rounded small mb-2"><code>${p.code}</code></pre>
+            <p class="small text-muted mb-0">${p.note}</p>
+        `;
+    }
+
+    scopeButtons.forEach((btn) => {
+        btn.addEventListener("click", () => {
+            scopeButtons.forEach((b) => {
+                b.classList.remove("btn-primary");
+                b.classList.add("btn-outline-secondary");
+            });
+            btn.classList.remove("btn-outline-secondary");
+            btn.classList.add("btn-primary");
+            renderScopePanel(btn.dataset.scope);
+        });
+    });
+
+    renderScopePanel("local");
+})();
+</script>
+
+<h2 class="h6 mt-4">나만의 커스텀 MCP 서버 만들기</h2>
+<p class="text-muted">
+    MCP 서버는 특정 언어에 묶여있지 않습니다 — 표준 입출력으로 JSON-RPC 메시지를 주고받을 수만 있으면 됩니다.
+    Python/TypeScript용 공식 SDK를 쓰면 도구 하나를 함수 하나로 정의할 수 있습니다.
+</p>
+<pre class="bg-dark text-light p-3 rounded small"><code># mcp_servers/shared_tools.py
+from mcp.server.fastmcp import FastMCP
+
+mcp = FastMCP("shared-tools")
+
+@mcp.tool()
+def lookup_ticket(ticket_id: str) -> str:
+    """사내 이슈 트래커에서 티켓 상태를 조회한다."""
+    # 실제로는 사내 API를 호출하는 코드가 들어갑니다.
+    return f"{ticket_id}: 진행중"
+
+@mcp.resource("tickets://open")
+def list_open_tickets() -> str:
+    """열려 있는 티켓 목록을 리소스로 노출한다."""
+    return "TICKET-101, TICKET-102"
+
+if __name__ == "__main__":
+    mcp.run()</code></pre>
+<ol class="small text-muted">
+    <li>위 파일을 저장한 뒤 <code>claude mcp add shared-tools -- python mcp_servers/shared_tools.py</code>로 등록합니다.</li>
+    <li><code>@mcp.tool()</code>로 감싼 함수의 <strong>docstring이 곧 description</strong>입니다 — 스킬/서브에이전트와 마찬가지로,
+        설명이 구체적일수록 Claude가 이 도구를 언제 써야 할지 정확히 판단합니다.</li>
+    <li>도구 하나만 추가하고 싶다면 이 서버에 함수를 하나만 정의해도 되고, 여러 도구를 한 서버에 묶어도 됩니다 —
+        도구 수와 서버 수는 독립적입니다.</li>
+</ol>
+
+<h2 class="h6 mt-4">무료로 써볼 수 있는 인기 MCP 서버</h2>
+<p class="text-muted small">
+    직접 만들지 않아도 이미 공개돼 있는 서버가 많습니다. 대부분 <code>modelcontextprotocol/servers</code> 저장소 및
+    각 서비스가 공식 배포하는 무료 참조 구현입니다. 정확한 설치 커맨드는 각 서버 문서를 확인하세요 — 생태계가 빠르게 바뀝니다.
+</p>
+
+<div class="row g-3">
+    <div class="col-12 col-md-6 col-lg-4">
+        <div class="border rounded p-3 h-100">
+            <div class="fw-bold">🗂️ Filesystem</div>
+            <p class="small text-muted mb-0">지정한 디렉터리 범위 안에서 파일을 읽고 쓰는 참조 서버. 접근 범위를 폴더 단위로 제한할 수 있습니다.</p>
+        </div>
+    </div>
+    <div class="col-12 col-md-6 col-lg-4">
+        <div class="border rounded p-3 h-100">
+            <div class="fw-bold">🐙 GitHub</div>
+            <p class="small text-muted mb-0">이슈·PR 생성/조회, 코드 검색 등을 API 토큰으로 연동합니다.</p>
+        </div>
+    </div>
+    <div class="col-12 col-md-6 col-lg-4">
+        <div class="border rounded p-3 h-100">
+            <div class="fw-bold">🧠 Memory</div>
+            <p class="small text-muted mb-0">지식 그래프 형태로 대화 간 정보를 저장·검색하는 참조 서버.</p>
+        </div>
+    </div>
+    <div class="col-12 col-md-6 col-lg-4">
+        <div class="border rounded p-3 h-100">
+            <div class="fw-bold">🌐 Puppeteer / Playwright</div>
+            <p class="small text-muted mb-0">브라우저를 띄워 페이지를 조작하고 스크린샷을 찍는 자동화 서버.</p>
+        </div>
+    </div>
+    <div class="col-12 col-md-6 col-lg-4">
+        <div class="border rounded p-3 h-100">
+            <div class="fw-bold">🐘 SQLite / Postgres</div>
+            <p class="small text-muted mb-0">데이터베이스에 (보통 읽기 전용으로) 쿼리를 날려 스키마·데이터를 조회합니다.</p>
+        </div>
+    </div>
+    <div class="col-12 col-md-6 col-lg-4">
+        <div class="border rounded p-3 h-100">
+            <div class="fw-bold">💬 Slack</div>
+            <p class="small text-muted mb-0">채널 메시지를 조회하거나 알림을 보내는 워크스페이스 연동 서버.</p>
+        </div>
+    </div>
+    <div class="col-12 col-md-6 col-lg-4">
+        <div class="border rounded p-3 h-100">
+            <div class="fw-bold">🔍 웹 검색 (Brave 등)</div>
+            <p class="small text-muted mb-0">검색 엔진 API를 감싸 최신 웹 검색 결과를 도구로 제공합니다.</p>
+        </div>
+    </div>
+    <div class="col-12 col-md-6 col-lg-4">
+        <div class="border rounded p-3 h-100">
+            <div class="fw-bold">📄 Google Drive</div>
+            <p class="small text-muted mb-0">드라이브 문서를 검색하고 내용을 가져오는 연동 서버.</p>
+        </div>
+    </div>
+</div>
+
+<div class="alert alert-secondary small mt-3 mb-0">
+    <strong>유용한 팁</strong>
+    <ul class="mb-0 mt-1">
+        <li><strong>로컬(stdio) vs 원격(HTTP)</strong>: 내 컴퓨터에서 뭔가를 실행해야 하면 로컬, 이미 호스팅된 서비스에 붙는 거라면 원격을 씁니다.</li>
+        <li><strong>범위(scope) 고르기</strong>: 나만 쓸 실험적인 서버는 기본(로컬) 범위로, 팀 전체가 써야 하면 <code>--scope project</code>로 <code>.mcp.json</code>에 커밋하세요.</li>
+        <li><strong>비밀값은 커밋하지 않기</strong>: API 키·토큰은 <code>.mcp.json</code>에 평문으로 넣지 말고 환경변수로 참조하게 만들어, 각자 로컬에서 값을 채우게 하세요.</li>
+        <li><strong>권한 최소화</strong>: 파일시스템·DB에 접근하는 서버는 꼭 필요한 디렉터리/테이블로 범위를 좁혀서 붙이세요 — MCP 서버는 강력한 만큼 신뢰할 수 있는 출처인지 먼저 확인해야 합니다.</li>
+        <li><strong>연결이 안 될 때</strong>: <code>claude mcp list</code>로 상태를 먼저 확인하고, 로컬 서버라면 커맨드를 터미널에서 직접 실행해 에러가 나는지 확인하는 게 가장 빠릅니다.</li>
+    </ul>
+</div>
+{% endblock %}

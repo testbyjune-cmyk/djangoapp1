@@ -8,4 +8,5 @@ urlpatterns = [
     path("tutorial/tools/", include("tutorial_tools.urls")),
     path("tutorial/worktree/", include("tutorial_worktree.urls")),
     path("tutorial/skills/", include("tutorial_skills.urls")),
+    path("tutorial/mcp/", include("tutorial_mcp.urls")),
 ]
