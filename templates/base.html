@@ -16,13 +16,22 @@
         .sidebar .nav-link { color: #495057; border-radius: .375rem; }
         .sidebar .nav-link:hover { background-color: #eef1f4; }
         .sidebar .nav-link.active { color: #fff; background-color: var(--bs-primary); font-weight: 600; }
+        .sidebar-toggle { font-size: 1.4rem; line-height: 1; border: 0; background: transparent; }
+        .offcanvas .nav-link { color: #495057; border-radius: .375rem; }
+        .offcanvas .nav-link:hover { background-color: #eef1f4; }
+        .offcanvas .nav-link.active { color: #fff; background-color: var(--bs-primary); font-weight: 600; }
         code { color: #d6336c; }
     </style>
 </head>
 <body>
 <nav class="navbar navbar-dark bg-primary mb-0">
     <div class="container-fluid">
-        <a class="navbar-brand mb-0" href="{% url 'core:home' %}">🧠 Claude Tutorial</a>
+        <button class="sidebar-toggle text-white d-md-none me-2" type="button"
+                data-bs-toggle="offcanvas" data-bs-target="#sidebarOffcanvas"
+                aria-controls="sidebarOffcanvas" aria-label="카테고리 메뉴 열기">
+            ☰
+        </button>
+        <a class="navbar-brand mb-0 flex-grow-1 flex-md-grow-0" href="{% url 'core:home' %}">🧠 Claude Tutorial</a>
         {% for item in nav_items %}
         {% if item.app_label == "core" %}
         <a class="nav-link text-white {% if request.resolver_match.view_name == item.url_name %}fw-bold{% endif %}"
@@ -32,17 +41,24 @@
     </div>
 </nav>
 
+<div class="offcanvas offcanvas-start" tabindex="-1" id="sidebarOffcanvas" aria-labelledby="sidebarOffcanvasLabel">
+    <div class="offcanvas-header">
+        <h2 class="offcanvas-title h6 text-uppercase text-muted mb-0" id="sidebarOffcanvasLabel">카테고리</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="닫기"></button>
+    </div>
+    <div class="offcanvas-body pt-0">
+        <nav class="nav flex-column gap-1">
+            {% include "partials/_sidebar_links.html" %}
+        </nav>
+    </div>
+</div>
+
 <div class="container-fluid">
     <div class="row">
-        <aside class="col-12 col-md-3 col-lg-2 sidebar bg-white border-end py-3 mb-3 mb-md-0">
+        <aside class="col-md-3 col-lg-2 sidebar bg-white border-end py-3 d-none d-md-block">
             <div class="text-muted small text-uppercase fw-bold px-2 mb-2">카테고리</div>
             <nav class="nav flex-column gap-1">
-                {% for item in nav_items %}
-                {% if item.app_label != "core" %}
-                <a class="nav-link px-2 py-2 {% if request.resolver_match.view_name == item.url_name %}active{% endif %}"
-                   href="{% url item.url_name %}">{{ item.label }}</a>
-                {% endif %}
-                {% endfor %}
+                {% include "partials/_sidebar_links.html" %}
             </nav>
         </aside>
 
