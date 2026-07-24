@@ -82,4 +82,249 @@
     render();
 })();
 </script>
+
+<h2 class="h6 mt-5">서브에이전트는 어떻게 정의하나요?</h2>
+<p class="text-muted">
+    서브에이전트는 <code>.claude/agents/&lt;이름&gt;.md</code> 파일 하나로 정의합니다.
+    YAML 프런트매터에 <strong>이름·설명·사용 가능 도구·모델</strong>을 적고, 본문에는 이 에이전트 전용 시스템 프롬프트를 씁니다.
+    특히 <code>description</code>은 메인 에이전트가 "지금 이 작업을 누구에게 맡길지" 판단하는 핵심 단서이므로 구체적으로 적을수록 좋습니다.
+</p>
+<pre class="bg-dark text-light p-3 rounded small"><code>---
+name: code-reviewer
+description: 코드가 수정된 직후 반드시 사용. 버그·스타일·보안 이슈를 점검하는 리뷰 전문가.
+tools: Read, Grep, Glob, Bash
+model: opus
+---
+
+당신은 신중한 시니어 코드 리뷰어입니다. 변경된 부분을 읽고
+정확성, 일관성, 보안 취약점 순으로 점검한 뒤 우선순위가 매겨진
+피드백 목록을 반환하세요. 사소한 스타일 지적으로 핵심 이슈를 묻지 마세요.</code></pre>
+<ul class="small text-muted">
+    <li><code>tools</code>를 생략하면 메인 에이전트가 가진 모든 도구를 상속합니다 — 필요한 도구만 최소로 나열하면 실수로 파일을 쓰거나 지우는 사고를 예방할 수 있습니다.</li>
+    <li><code>model</code>을 생략하면 기본 모델을 사용합니다. 정밀한 판단이 필요한 리뷰어는 상위 모델을, 단순 탐색은 빠른 모델을 지정하기도 합니다.</li>
+</ul>
+
+<h2 class="h6 mt-4">실전 서브에이전트 예제 모음</h2>
+<p class="text-muted small">
+    카테고리를 눌러 필터링하거나 검색해보세요. 각 카드를 누르면 실제 정의 파일 예시를 볼 수 있습니다.
+</p>
+
+<div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+    <input type="text" id="agent-search" class="form-control form-control-sm" style="max-width: 220px;" placeholder="검색: 예) 보안, 테스트">
+    <div id="agent-filters" class="d-flex flex-wrap gap-1"></div>
+</div>
+
+<div id="agent-gallery" class="row g-3"></div>
+
+<script>
+(function () {
+    const AGENTS = [
+        {
+            name: "code-reviewer",
+            emoji: "🔍",
+            category: "코드 품질",
+            summary: "코드가 수정된 직후 자동으로 호출되어 버그·스타일·보안을 점검합니다.",
+            tools: "Read, Grep, Glob, Bash",
+            model: "opus",
+            description: "코드가 수정된 직후 반드시 사용. 버그·스타일·보안 이슈를 점검하는 리뷰 전문가.",
+        },
+        {
+            name: "test-runner",
+            emoji: "✅",
+            category: "테스트",
+            summary: "실패한 테스트를 찾아 원인을 진단하고, 필요하면 직접 수정까지 시도합니다.",
+            tools: "Read, Edit, Bash",
+            model: "sonnet",
+            description: "테스트를 실행하거나 테스트 실패를 조사해야 할 때 사용. 실패 원인을 근본까지 추적한다.",
+        },
+        {
+            name: "debugger",
+            emoji: "🐛",
+            category: "디버깅",
+            summary: "에러 메시지와 스택트레이스를 받아 근본 원인을 추적하는 전문가입니다.",
+            tools: "Read, Grep, Bash",
+            model: "opus",
+            description: "에러, 예외, 예상치 못한 동작을 조사할 때 적극적으로 사용. 증상이 아니라 근본 원인을 찾는다.",
+        },
+        {
+            name: "security-auditor",
+            emoji: "🛡️",
+            category: "보안",
+            summary: "인증·입력 처리 코드에서 OWASP 취약점(주입, XSS 등)을 점검합니다.",
+            tools: "Read, Grep, Glob",
+            model: "opus",
+            description: "인증, 입력 검증, 외부 데이터 처리 코드를 다룰 때 반드시 사용해 보안 취약점을 점검한다.",
+        },
+        {
+            name: "docs-writer",
+            emoji: "📚",
+            category: "문서화",
+            summary: "코드 변경 사항을 근거로 README와 API 문서를 최신 상태로 갱신합니다.",
+            tools: "Read, Write, Edit, Grep",
+            model: "sonnet",
+            description: "공개 API나 설정 방법이 바뀌었을 때 사용해 문서를 코드와 동기화한다.",
+        },
+        {
+            name: "db-migration-reviewer",
+            emoji: "🗄️",
+            category: "데이터베이스",
+            summary: "스키마 마이그레이션이 락/대용량 테이블에 안전한지 검토합니다.",
+            tools: "Read, Bash",
+            model: "opus",
+            description: "새 마이그레이션 파일이 추가되면 사용. 프로덕션 규모 테이블에서의 안전성을 검토한다.",
+        },
+        {
+            name: "api-consistency-checker",
+            emoji: "🧩",
+            category: "설계",
+            summary: "새 엔드포인트가 기존 REST 컨벤션(네이밍, 에러 포맷)과 일치하는지 확인합니다.",
+            tools: "Read, Grep",
+            model: "sonnet",
+            description: "새 API 엔드포인트를 추가하거나 수정할 때 사용해 기존 컨벤션과의 일관성을 점검한다.",
+        },
+        {
+            name: "performance-profiler",
+            emoji: "⚡",
+            category: "성능",
+            summary: "느린 쿼리나 렌더링 구간을 찾아 프로파일링 결과와 개선안을 제시합니다.",
+            tools: "Read, Bash, Grep",
+            model: "opus",
+            description: "성능 저하나 병목이 의심될 때 사용. 추측이 아니라 측정된 근거로 원인을 제시한다.",
+        },
+        {
+            name: "release-notes-writer",
+            emoji: "📦",
+            category: "릴리스",
+            summary: "머지된 PR·커밋 로그를 근거로 사용자용 릴리스 노트 초안을 작성합니다.",
+            tools: "Bash, Read",
+            model: "sonnet",
+            description: "릴리스를 준비할 때 사용해 git 로그를 사용자 친화적인 변경 내역으로 정리한다.",
+        },
+        {
+            name: "dependency-auditor",
+            emoji: "📦",
+            category: "보안",
+            summary: "의존성 목록을 점검해 오래되었거나 알려진 취약점이 있는 패키지를 찾아냅니다.",
+            tools: "Read, Bash",
+            model: "sonnet",
+            description: "package.json/requirements.txt가 바뀌었을 때 사용해 의존성 위험을 점검한다.",
+        },
+        {
+            name: "explore (읽기 전용 탐색)",
+            emoji: "🧭",
+            category: "탐색",
+            summary: "코드베이스 전역 탐색에 특화된 내장형 유형. 파일을 고치지 않고 위치만 찾아 보고합니다.",
+            tools: "Read, Grep, Glob (Edit/Write 없음)",
+            model: "sonnet",
+            description: "열린 질문의 코드 위치 탐색에 사용. 결과가 방대해도 메인 컨텍스트를 차지하지 않는다.",
+        },
+        {
+            name: "plan (설계 전문가)",
+            emoji: "🗺️",
+            category: "설계",
+            summary: "구현 전에 단계별 계획과 아키텍처 트레이드오프를 제시하는 내장형 유형입니다.",
+            tools: "Read, Grep, Glob, Bash (Edit/Write 없음)",
+            model: "opus",
+            description: "복잡한 작업을 시작하기 전 구현 전략을 설계할 때 사용한다.",
+        },
+    ];
+
+    const gallery = document.getElementById("agent-gallery");
+    const searchInput = document.getElementById("agent-search");
+    const filtersEl = document.getElementById("agent-filters");
+    const categories = ["전체", ...new Set(AGENTS.map((a) => a.category))];
+    let activeCategory = "전체";
+
+    function frontmatter(agent) {
+        return `---
+name: ${agent.name.replace(/\s*\(.*\)$/, "")}
+description: ${agent.description}
+tools: ${agent.tools}
+model: ${agent.model}
+---`;
+    }
+
+    function matches(agent, query) {
+        const q = query.trim().toLowerCase();
+        const categoryOk = activeCategory === "전체" || agent.category === activeCategory;
+        if (!categoryOk) return false;
+        if (!q) return true;
+        return (
+            agent.name.toLowerCase().includes(q) ||
+            agent.summary.toLowerCase().includes(q) ||
+            agent.category.toLowerCase().includes(q)
+        );
+    }
+
+    function renderFilters() {
+        filtersEl.innerHTML = categories
+            .map(
+                (c) => `
+                <button type="button" class="btn btn-sm ${c === activeCategory ? "btn-primary" : "btn-outline-secondary"} cat-btn" data-cat="${c}">
+                    ${c}
+                </button>`
+            )
+            .join("");
+
+        filtersEl.querySelectorAll(".cat-btn").forEach((btn) => {
+            btn.addEventListener("click", () => {
+                activeCategory = btn.dataset.cat;
+                renderFilters();
+                renderGallery(searchInput.value);
+            });
+        });
+    }
+
+    function renderGallery(query) {
+        const filtered = AGENTS.filter((a) => matches(a, query || ""));
+
+        if (filtered.length === 0) {
+            gallery.innerHTML = `<div class="col-12 text-muted small">일치하는 서브에이전트 예제가 없습니다.</div>`;
+            return;
+        }
+
+        gallery.innerHTML = filtered
+            .map(
+                (a, i) => `
+                <div class="col-12 col-md-6">
+                    <div class="border rounded p-3 h-100 agent-card">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <span class="fw-bold">${a.emoji} ${a.name}</span>
+                                <span class="badge bg-secondary ms-1">${a.category}</span>
+                            </div>
+                        </div>
+                        <p class="small text-muted mb-2 mt-1">${a.summary}</p>
+                        <button type="button" class="btn btn-outline-dark btn-sm toggle-code" data-idx="${i}">
+                            정의 파일 보기 ▾
+                        </button>
+                        <pre class="bg-dark text-light p-2 rounded small mt-2 d-none code-block"><code></code></pre>
+                    </div>
+                </div>`
+            )
+            .join("");
+
+        gallery.querySelectorAll(".toggle-code").forEach((btn) => {
+            btn.addEventListener("click", () => {
+                const card = btn.closest(".agent-card");
+                const pre = card.querySelector(".code-block");
+                const agent = filtered[Number(btn.dataset.idx)];
+                if (pre.classList.contains("d-none")) {
+                    pre.querySelector("code").textContent = frontmatter(agent);
+                    pre.classList.remove("d-none");
+                    btn.textContent = "정의 파일 숨기기 ▴";
+                } else {
+                    pre.classList.add("d-none");
+                    btn.textContent = "정의 파일 보기 ▾";
+                }
+            });
+        });
+    }
+
+    searchInput.addEventListener("input", () => renderGallery(searchInput.value));
+
+    renderFilters();
+    renderGallery("");
+})();
+</script>
 {% endblock %}
