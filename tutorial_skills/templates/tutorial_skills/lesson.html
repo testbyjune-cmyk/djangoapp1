@@ -349,4 +349,149 @@ ${skill.body}`;
     renderCombo();
 })();
 </script>
+
+<h2 class="h6 mt-5">이미 만들어진 스킬 다운로드해서 쓰기</h2>
+<p class="text-muted">
+    스킬을 항상 직접 만들 필요는 없습니다. 다른 사람이 만들어 배포한 스킬을 그대로 받아와 <code>.claude/skills/</code>에 놓기만 하면
+    바로 사용할 수 있습니다. 대표적으로 세 가지 방법이 있습니다.
+</p>
+
+<div class="d-flex flex-wrap gap-1 mb-2" id="install-tabs">
+    <button type="button" class="btn btn-sm btn-primary install-tab-btn" data-tab="marketplace">① 마켓플레이스로 설치</button>
+    <button type="button" class="btn btn-sm btn-outline-secondary install-tab-btn" data-tab="local">② 프로젝트에 직접 복사</button>
+    <button type="button" class="btn btn-sm btn-outline-secondary install-tab-btn" data-tab="global">③ 내 컴퓨터 전역 설치</button>
+</div>
+
+<div id="install-panel" class="border rounded p-3 bg-light"></div>
+
+<script>
+(function () {
+    const PANELS = {
+        marketplace: {
+            when: "신뢰할 수 있는 배포처에서 여러 스킬을 한 번에 받고, 이후 업데이트도 계속 받고 싶을 때",
+            code: `/plugin marketplace add anthropics/skills
+/plugin install pdf@anthropic-skills
+/plugin install dataviz@anthropic-skills`,
+            note: "마켓플레이스를 한 번 등록해두면 그 안의 여러 스킬을 이름만으로 골라 설치할 수 있고, 마켓플레이스가 업데이트되면 같은 명령으로 최신 버전을 받을 수 있습니다.",
+        },
+        local: {
+            when: "마켓플레이스 없이 스킬 저장소 하나(예: GitHub 레포)를 이 프로젝트에만 빠르게 가져오고 싶을 때",
+            code: `git clone https://github.com/<누군가>/<skill-repo>.git tmp-skill
+cp -r tmp-skill/<skill-name> .claude/skills/<skill-name>
+rm -rf tmp-skill
+
+git add .claude/skills/<skill-name>
+git commit -m "Add <skill-name> skill"`,
+            note: "SKILL.md가 들어있는 폴더를 통째로 .claude/skills/ 아래 복사하면 끝입니다. git에 커밋해두면 이 저장소를 쓰는 팀원 모두가 같은 스킬을 자동으로 갖게 됩니다.",
+        },
+        global: {
+            when: "커밋 메시지 스타일처럼 프로젝트와 무관하게 내가 항상 쓰고 싶은 개인용 스킬일 때",
+            code: `cp -r <skill-name> ~/.claude/skills/<skill-name>`,
+            note: "프로젝트 로컬(.claude/skills)이 아니라 홈 디렉터리(~/.claude/skills)에 두면, 내 컴퓨터의 모든 프로젝트에서 공통으로 사용됩니다. 단, 다른 팀원과는 공유되지 않습니다.",
+        },
+    };
+
+    const tabButtons = document.querySelectorAll(".install-tab-btn");
+    const panel = document.getElementById("install-panel");
+
+    function renderPanel(key) {
+        const p = PANELS[key];
+        panel.innerHTML = `
+            <p class="small mb-2"><strong>언제 쓰나요?</strong> ${p.when}</p>
+            <pre class="bg-dark text-light p-2 rounded small mb-2"><code>${p.code}</code></pre>
+            <p class="small text-muted mb-0">${p.note}</p>
+        `;
+    }
+
+    tabButtons.forEach((btn) => {
+        btn.addEventListener("click", () => {
+            tabButtons.forEach((b) => {
+                b.classList.remove("btn-primary");
+                b.classList.add("btn-outline-secondary");
+            });
+            btn.classList.remove("btn-outline-secondary");
+            btn.classList.add("btn-primary");
+            renderPanel(btn.dataset.tab);
+        });
+    });
+
+    renderPanel("marketplace");
+})();
+</script>
+<p class="text-muted small mt-2">
+    ⚠️ 스킬 본문은 결국 Claude에게 내리는 지침입니다. 출처가 불분명한 스킬을 설치하면 악의적인 지침이 섞여 들어올 수 있으니,
+    신뢰할 수 있는 마켓플레이스·저장소에서만 받으세요.
+</p>
+
+<h2 class="h6 mt-4">인기 있는 스킬 & 유용한 팁</h2>
+<p class="text-muted small">실무에서 자주 쓰이는 스킬들입니다. 이름을 몰라도 관련 키워드(파일 확장자, "슬라이드", "차트" 등)만 말해도 자동으로 트리거되는 경우가 많습니다.</p>
+
+<div class="row g-3">
+    <div class="col-12 col-md-6 col-lg-4">
+        <div class="border rounded p-3 h-100">
+            <div class="fw-bold">📄 pdf</div>
+            <p class="small text-muted mb-1">PDF 읽기·생성·병합·분할·워터마크·양식 채우기까지 처리.</p>
+            <p class="small mb-0">💡 "이 PDF에서 표만 뽑아줘"처럼 파일을 언급하면 자동 트리거됩니다.</p>
+        </div>
+    </div>
+    <div class="col-12 col-md-6 col-lg-4">
+        <div class="border rounded p-3 h-100">
+            <div class="fw-bold">📝 docx</div>
+            <p class="small text-muted mb-1">Word 문서·템플릿 생성, 표/목차/머리글 포함 전문 문서 작성.</p>
+            <p class="small mb-0">💡 "보고서를 워드 파일로 줘" 같은 요청에 바로 반응합니다.</p>
+        </div>
+    </div>
+    <div class="col-12 col-md-6 col-lg-4">
+        <div class="border rounded p-3 h-100">
+            <div class="fw-bold">📊 pptx</div>
+            <p class="small text-muted mb-1">슬라이드 덱·피치덱 생성 및 기존 프레젠테이션 편집.</p>
+            <p class="small mb-0">💡 발표 자료 요청은 "슬라이드"라는 단어만으로도 충분히 트리거됩니다.</p>
+        </div>
+    </div>
+    <div class="col-12 col-md-6 col-lg-4">
+        <div class="border rounded p-3 h-100">
+            <div class="fw-bold">📈 xlsx</div>
+            <p class="small text-muted mb-1">스프레드시트 생성·수식 계산·데이터 정리·차트 삽입.</p>
+            <p class="small mb-0">💡 지저분한 CSV를 정리해달라는 요청에도 반응합니다.</p>
+        </div>
+    </div>
+    <div class="col-12 col-md-6 col-lg-4">
+        <div class="border rounded p-3 h-100">
+            <div class="fw-bold">🎨 dataviz</div>
+            <p class="small text-muted mb-1">차트/대시보드를 만들기 전에 참고할 색상·레이아웃 디자인 가이드.</p>
+            <p class="small mb-0">💡 아무 차트나 그리기 전에 항상 먼저 참조하게 만들면 결과물 톤이 일관됩니다.</p>
+        </div>
+    </div>
+    <div class="col-12 col-md-6 col-lg-4">
+        <div class="border rounded p-3 h-100">
+            <div class="fw-bold">🛠️ skill-creator</div>
+            <p class="small text-muted mb-1">새 스킬을 만들거나 기존 스킬의 트리거 정확도를 테스트/개선.</p>
+            <p class="small mb-0">💡 스킬이 원하는 순간에 안 불려온다면 이 스킬로 description을 다듬어보세요.</p>
+        </div>
+    </div>
+    <div class="col-12 col-md-6 col-lg-4">
+        <div class="border rounded p-3 h-100">
+            <div class="fw-bold">🔒 security-review</div>
+            <p class="small text-muted mb-1">보류 중인 변경 사항(diff)에 보안 취약점이 있는지 점검.</p>
+            <p class="small mb-0">💡 PR을 올리기 직전 습관처럼 돌리면 사고를 예방할 수 있습니다.</p>
+        </div>
+    </div>
+    <div class="col-12 col-md-6 col-lg-4">
+        <div class="border rounded p-3 h-100">
+            <div class="fw-bold">🖼️ artifact-design</div>
+            <p class="small text-muted mb-1">공유 가능한 웹페이지(Artifact)를 만들 때의 디자인 기본기 가이드.</p>
+            <p class="small mb-0">💡 결과물의 디자인 완성도를 한 단계 끌어올리고 싶을 때 유용합니다.</p>
+        </div>
+    </div>
+</div>
+
+<div class="alert alert-secondary small mt-3 mb-0">
+    <strong>실전 팁</strong>
+    <ul class="mb-0 mt-1">
+        <li>스킬 이름을 몰라도 괜찮습니다 — 파일 확장자, 키워드만 말해도 <code>description</code>이 일치하면 자동으로 골라 씁니다.</li>
+        <li>비슷한 역할의 스킬이 여러 개 설치돼 있으면, <strong>description이 더 구체적인 쪽</strong>이 우선 트리거되는 경향이 있습니다. 애매하면 이름으로 직접 지정하세요.</li>
+        <li>팀 표준으로 삼고 싶은 스킬은 <code>.claude/skills/</code>에 두고 git에 커밋 — 개인 습관으로만 두고 싶은 스킬은 <code>~/.claude/skills/</code>에 둡니다.</li>
+        <li>스킬을 설치한 뒤 원하는 순간에 트리거되지 않으면, 십중팔구 <code>description</code>이 모호한 경우입니다 — <code>skill-creator</code>로 다듬어보세요.</li>
+    </ul>
+</div>
 {% endblock %}
