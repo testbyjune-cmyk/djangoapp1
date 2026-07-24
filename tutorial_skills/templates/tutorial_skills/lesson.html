@@ -75,4 +75,278 @@
     });
 })();
 </script>
+
+<h2 class="h6 mt-5">스킬은 어떻게 정의하나요?</h2>
+<p class="text-muted">
+    스킬은 <code>.claude/skills/&lt;이름&gt;/SKILL.md</code> 파일로 정의합니다. 서브에이전트와 마찬가지로
+    YAML 프런트매터의 <code>description</code>이 "지금 이 스킬을 자동으로 불러올지"를 판단하는 핵심 단서입니다.
+    본문에는 단계별 절차·체크리스트·예시를 적어두고, 필요하면 <code>/이름</code>으로 직접 호출할 수도 있습니다.
+</p>
+<pre class="bg-dark text-light p-3 rounded small"><code>---
+name: code-review
+description: PR이나 diff를 검토해야 할 때 사용. 정확성 → 보안 → 스타일 순서로
+  체크리스트를 적용해 리뷰한다.
+allowed-tools: Read, Grep, Glob, Bash, Agent
+---
+
+## 절차
+1. `git diff`로 변경 범위를 확인한다.
+2. 변경이 크거나 여러 파일에 걸쳐 있으면, 조사로 컨텍스트가 오염되지 않도록
+   code-reviewer 서브에이전트에게 위임하고 요약 리포트만 받는다.
+3. 변경이 작으면 이 스킬이 직접 체크리스트를 적용해 검토한다.
+4. 결과를 "🔴 반드시 수정 / 🟡 권장 / 🟢 참고" 3단계로 정리해 보고한다.</code></pre>
+<p class="text-muted small">
+    위 예시처럼 스킬 본문에 "~서브에이전트에게 위임한다"라고 명시적으로 적어두면, 스킬은 절차(레시피) 역할을 하고
+    실제 무거운 조사는 격리된 컨텍스트를 가진 서브에이전트가 담당하는 구조가 됩니다.
+</p>
+
+<h2 class="h6 mt-4">실전 스킬 예제 모음</h2>
+<p class="text-muted small">
+    카테고리를 눌러 필터링하거나 검색해보세요. 각 스킬이 어떤 서브에이전트와 짝을 이루는지도 함께 표시됩니다.
+</p>
+
+<div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+    <input type="text" id="skill-search" class="form-control form-control-sm" style="max-width: 220px;" placeholder="검색: 예) 보안, 릴리스">
+    <div id="skill-filters" class="d-flex flex-wrap gap-1"></div>
+</div>
+
+<div id="skill-gallery" class="row g-3"></div>
+
+<script>
+(function () {
+    const SKILLS = [
+        {
+            name: "code-review",
+            emoji: "🔍",
+            category: "코드 품질",
+            summary: "PR/diff를 정확성 → 보안 → 스타일 순으로 점검하는 체크리스트 절차.",
+            description: "PR이나 diff를 검토해야 할 때 사용. 정확성 → 보안 → 스타일 순으로 체크리스트를 적용해 리뷰한다.",
+            allowedTools: "Read, Grep, Glob, Bash, Agent",
+            pairsWith: "code-reviewer",
+            body: "변경이 크면 code-reviewer 서브에이전트에게 위임해 요약만 받고,\n작은 변경은 스킬이 직접 체크리스트로 검토한다.",
+        },
+        {
+            name: "release-prep",
+            emoji: "📦",
+            category: "릴리스",
+            summary: "머지된 커밋을 모아 릴리스 노트 초안과 배포 체크리스트를 만드는 절차.",
+            description: "새 버전을 릴리스할 준비를 할 때 사용. git 로그 정리부터 배포 체크리스트까지 순서대로 진행한다.",
+            allowedTools: "Bash, Read, Agent",
+            pairsWith: "release-notes-writer",
+            body: "git log 수집은 release-notes-writer 서브에이전트에게 위임하고,\n스킬은 반환된 초안에 배포 체크리스트(마이그레이션/환경변수 확인)를 덧붙인다.",
+        },
+        {
+            name: "db-migration-guide",
+            emoji: "🗄️",
+            category: "데이터베이스",
+            summary: "새 마이그레이션 작성 시 락·인덱스·롤백 전략을 순서대로 점검하는 절차.",
+            description: "새 스키마 마이그레이션 파일을 추가하거나 검토할 때 사용. 안전한 마이그레이션 체크리스트를 순회한다.",
+            allowedTools: "Read, Bash, Agent",
+            pairsWith: "db-migration-reviewer",
+            body: "대용량 테이블 대상 마이그레이션은 db-migration-reviewer 서브에이전트에게\n안전성 검토를 위임하고, 스킬은 결과를 롤백 계획 템플릿에 채워 넣는다.",
+        },
+        {
+            name: "security-checklist",
+            emoji: "🛡️",
+            category: "보안",
+            summary: "인증/입력 처리 코드 변경 시 OWASP 기반 점검표를 순회하는 절차.",
+            description: "인증, 세션, 입력 검증 코드를 수정했을 때 사용. 보안 체크리스트를 순서대로 적용한다.",
+            allowedTools: "Read, Grep, Agent",
+            pairsWith: "security-auditor",
+            body: "점검 범위가 넓으면 security-auditor 서브에이전트에게 위임해\n취약점 목록만 받고, 스킬은 그 목록을 심각도별로 재정렬해 보고한다.",
+        },
+        {
+            name: "api-doc-sync",
+            emoji: "📚",
+            category: "문서화",
+            summary: "공개 API가 바뀐 뒤 README/API 문서를 최신 상태로 맞추는 절차.",
+            description: "공개 API나 설정 방법이 바뀌었을 때 사용해 문서를 코드와 동기화한다.",
+            allowedTools: "Read, Edit, Grep, Agent",
+            pairsWith: "docs-writer",
+            body: "변경된 엔드포인트/설정 목록을 docs-writer 서브에이전트가 조사해 초안을 만들면,\n스킬은 문서 톤·포맷 규칙에 맞춰 다듬는다.",
+        },
+        {
+            name: "incident-postmortem",
+            emoji: "🚨",
+            category: "인시던트",
+            summary: "장애 대응이 끝난 뒤 근본 원인과 재발 방지책을 정리하는 포스트모템 절차.",
+            description: "장애 대응이 마무리된 직후 사용. 타임라인 정리부터 재발 방지 액션 아이템까지 표준 양식으로 작성한다.",
+            allowedTools: "Read, Bash, Agent",
+            pairsWith: "debugger",
+            body: "근본 원인 추적이 아직 안 끝났다면 debugger 서브에이전트에게 위임해\n원인 분석을 받은 뒤, 스킬은 그 결과를 포스트모템 표준 양식에 채운다.",
+        },
+    ];
+
+    const skillGallery = document.getElementById("skill-gallery");
+    const skillSearchInput = document.getElementById("skill-search");
+    const skillFiltersEl = document.getElementById("skill-filters");
+    const skillCategories = ["전체", ...new Set(SKILLS.map((s) => s.category))];
+    let activeSkillCategory = "전체";
+
+    function skillFrontmatter(skill) {
+        return `---
+name: ${skill.name}
+description: ${skill.description}
+allowed-tools: ${skill.allowedTools}
+---
+
+${skill.body}`;
+    }
+
+    function matchesSkill(skill, query) {
+        const q = query.trim().toLowerCase();
+        const categoryOk = activeSkillCategory === "전체" || skill.category === activeSkillCategory;
+        if (!categoryOk) return false;
+        if (!q) return true;
+        return (
+            skill.name.toLowerCase().includes(q) ||
+            skill.summary.toLowerCase().includes(q) ||
+            skill.category.toLowerCase().includes(q) ||
+            skill.pairsWith.toLowerCase().includes(q)
+        );
+    }
+
+    function renderSkillFilters() {
+        skillFiltersEl.innerHTML = skillCategories
+            .map(
+                (c) => `
+                <button type="button" class="btn btn-sm ${c === activeSkillCategory ? "btn-primary" : "btn-outline-secondary"} skill-cat-btn" data-cat="${c}">
+                    ${c}
+                </button>`
+            )
+            .join("");
+
+        skillFiltersEl.querySelectorAll(".skill-cat-btn").forEach((btn) => {
+            btn.addEventListener("click", () => {
+                activeSkillCategory = btn.dataset.cat;
+                renderSkillFilters();
+                renderSkillGallery(skillSearchInput.value);
+            });
+        });
+    }
+
+    function renderSkillGallery(query) {
+        const filtered = SKILLS.filter((s) => matchesSkill(s, query || ""));
+
+        if (filtered.length === 0) {
+            skillGallery.innerHTML = `<div class="col-12 text-muted small">일치하는 스킬 예제가 없습니다.</div>`;
+            return;
+        }
+
+        skillGallery.innerHTML = filtered
+            .map(
+                (s, i) => `
+                <div class="col-12 col-md-6">
+                    <div class="border rounded p-3 h-100 skill-card">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <span class="fw-bold">${s.emoji} /${s.name}</span>
+                                <span class="badge bg-secondary ms-1">${s.category}</span>
+                            </div>
+                        </div>
+                        <p class="small text-muted mb-2 mt-1">${s.summary}</p>
+                        <div class="small mb-2">
+                            <span class="badge bg-info text-dark">🤝 함께 쓰는 서브에이전트: ${s.pairsWith}</span>
+                        </div>
+                        <button type="button" class="btn btn-outline-dark btn-sm toggle-skill-code" data-idx="${i}">
+                            SKILL.md 보기 ▾
+                        </button>
+                        <pre class="bg-dark text-light p-2 rounded small mt-2 d-none skill-code-block"><code></code></pre>
+                    </div>
+                </div>`
+            )
+            .join("");
+
+        skillGallery.querySelectorAll(".toggle-skill-code").forEach((btn) => {
+            btn.addEventListener("click", () => {
+                const card = btn.closest(".skill-card");
+                const pre = card.querySelector(".skill-code-block");
+                const skill = filtered[Number(btn.dataset.idx)];
+                if (pre.classList.contains("d-none")) {
+                    pre.querySelector("code").textContent = skillFrontmatter(skill);
+                    pre.classList.remove("d-none");
+                    btn.textContent = "SKILL.md 숨기기 ▴";
+                } else {
+                    pre.classList.add("d-none");
+                    btn.textContent = "SKILL.md 보기 ▾";
+                }
+            });
+        });
+    }
+
+    skillSearchInput.addEventListener("input", () => renderSkillGallery(skillSearchInput.value));
+
+    renderSkillFilters();
+    renderSkillGallery("");
+})();
+</script>
+
+<h2 class="h6 mt-5">스킬 + 서브에이전트, 왜 함께 쓰나요?</h2>
+<p class="text-muted">
+    둘은 서로 다른 문제를 풉니다. <strong>스킬</strong>은 <em>"언제, 어떤 순서로 할지"</em>를 재사용 가능한
+    절차/체크리스트로 담습니다. <strong>서브에이전트</strong>는 <em>"누가, 어떤 격리된 컨텍스트에서 실행할지"</em>를 담당합니다.
+    스킬 본문에서 무거운 조사 단계를 서브에이전트에게 위임하도록 지시하면,
+    반복되는 절차는 스킬이 표준화하고 방대한 중간 탐색은 서브에이전트가 흡수해 메인 컨텍스트를 깨끗하게 유지할 수 있습니다.
+</p>
+
+<h2 class="h6 mt-4">직접 해보기: 스킬이 서브에이전트에게 위임하는 흐름</h2>
+<p class="text-muted small"><code>/code-review</code> 커맨드 하나가 실제로 어떻게 처리되는지 단계별로 확인해보세요.</p>
+
+<div class="border rounded p-3 bg-light">
+    <div id="combo-steps" class="d-flex flex-column gap-2 mb-3"></div>
+    <button type="button" id="combo-next" class="btn btn-primary btn-sm">다음 단계 ▶</button>
+    <button type="button" id="combo-reset" class="btn btn-outline-secondary btn-sm">처음부터</button>
+</div>
+
+<script>
+(function () {
+    const COMBO_STEPS = [
+        { actor: "사용자", text: "\"/code-review\" 입력" },
+        { actor: "스킬", text: "code-review 스킬이 트리거됨 → 절차 1단계: git diff로 변경 범위 확인" },
+        { actor: "스킬", text: "변경 범위가 크다고 판단 → 2단계: code-reviewer 서브에이전트에게 위임" },
+        { actor: "서브에이전트", text: "code-reviewer가 격리된 컨텍스트에서 diff를 정독하며 조사 중... (메인 컨텍스트는 영향 없음)" },
+        { actor: "서브에이전트", text: "조사 완료 → \"🔴 2건, 🟡 3건, 🟢 1건\" 요약 리포트 반환" },
+        { actor: "스킬", text: "3단계: 반환된 리포트를 스킬의 표준 3단계 포맷으로 정리" },
+        { actor: "메인 에이전트", text: "정리된 리뷰 결과를 사용자에게 최종 답변" },
+    ];
+
+    const comboContainer = document.getElementById("combo-steps");
+    const comboNextBtn = document.getElementById("combo-next");
+    const comboResetBtn = document.getElementById("combo-reset");
+    let comboShown = 0;
+
+    const comboActorClass = {
+        "사용자": "primary",
+        "스킬": "warning",
+        "서브에이전트": "success",
+        "메인 에이전트": "dark",
+    };
+
+    function renderCombo() {
+        comboNextBtn.disabled = comboShown >= COMBO_STEPS.length;
+        comboNextBtn.textContent = comboShown >= COMBO_STEPS.length ? "완료 ✓" : "다음 단계 ▶";
+    }
+
+    comboNextBtn.addEventListener("click", () => {
+        if (comboShown >= COMBO_STEPS.length) return;
+        const step = COMBO_STEPS[comboShown];
+        const row = document.createElement("div");
+        row.className = "p-2 bg-white border rounded";
+        const cls = comboActorClass[step.actor] || "secondary";
+        const textCls = cls === "warning" ? "text-dark" : "";
+        row.innerHTML = `<span class="badge bg-${cls} ${textCls}">${step.actor}</span> ${step.text}`;
+        comboContainer.appendChild(row);
+        comboShown += 1;
+        renderCombo();
+    });
+
+    comboResetBtn.addEventListener("click", () => {
+        comboContainer.innerHTML = "";
+        comboShown = 0;
+        renderCombo();
+    });
+
+    renderCombo();
+})();
+</script>
 {% endblock %}
