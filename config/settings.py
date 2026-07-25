@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     "tutorial_worktree",
     "tutorial_skills",
     "tutorial_mcp",
+    "tutorial_managed_agents",
 ]
 
 MIDDLEWARE = [
