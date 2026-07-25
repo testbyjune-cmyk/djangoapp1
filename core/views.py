@@ -6,6 +6,8 @@ from django.shortcuts import redirect, render
 from django.views import View
 from django.views.generic import TemplateView
 
+from .comment_ownership import forget_owned_comment, owned_comment_ids, remember_owned_comment
+from .comment_store import MAX_COMMENT_LENGTH, get_comment_store
 from .models import AppToggle
 from .navigation import get_all_items, get_nav_items, is_app_enabled
 from .progress import get_completed, toggle_complete
@@ -72,3 +74,44 @@ class ToggleProgressView(View):
 
         completed = toggle_complete(request, app_label)
         return JsonResponse({"completed": completed})
+
+
+class CommentCreateView(View):
+    """댓글/문장 남기기. page_key로 어느 콘텐츠에 다는 댓글인지 구분한다."""
+
+    def post(self, request, page_key, *args, **kwargs):
+        try:
+            payload = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "잘못된 요청입니다."}, status=400)
+
+        text = (payload.get("text") or "").strip()
+        if not text:
+            return JsonResponse({"error": "문장을 입력해주세요."}, status=400)
+        if len(text) > MAX_COMMENT_LENGTH:
+            return JsonResponse(
+                {"error": f"{MAX_COMMENT_LENGTH}자를 초과했습니다 (현재 {len(text)}자)."},
+                status=400,
+            )
+
+        store = get_comment_store()
+        entry = store.create(page_key, text)
+
+        if not request.session.session_key:
+            request.session.save()
+        remember_owned_comment(request, page_key, entry["id"])
+        entry["can_delete"] = True
+
+        return JsonResponse({"entry": entry, "total": store.count(page_key)}, status=201)
+
+
+class CommentDeleteView(View):
+    def post(self, request, page_key, entry_id, *args, **kwargs):
+        if entry_id not in owned_comment_ids(request, page_key):
+            return JsonResponse({"error": "본인이 남긴 문장만 지울 수 있어요."}, status=403)
+
+        store = get_comment_store()
+        deleted = store.delete(page_key, entry_id)
+        if deleted:
+            forget_owned_comment(request, page_key, entry_id)
+        return JsonResponse({"deleted": deleted, "total": store.count(page_key)})

@@ -1,14 +1,4 @@
 from django.db import models
 
-
-class GuestbookEntry(models.Model):
-    """댓글(문장) 남기기 데모용 모델 - Vercel KV 같은 텍스트 저장소를 흉내낸다."""
-
-    text = models.CharField(max_length=280)
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        ordering = ["-created_at"]
-
-    def __str__(self):
-        return self.text[:30]
+# 이 앱의 "문장쓰기" 데모는 core.comment_store가 제공하는 공용 저장소를 사용한다.
+# (로컬 개발: core.Comment ORM 모델 / Vercel KV 연결 시: 실제 Upstash Redis)

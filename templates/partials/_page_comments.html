@@ -1,0 +1,189 @@
+{% if page_comment_key %}
+<div id="pc-root" class="p-4 bg-white rounded shadow-sm mt-3" data-page-key="{{ page_comment_key }}">
+    <h2 class="h6 mb-1">💬 이 페이지에 댓글 남기기</h2>
+    <p class="text-muted small">
+        이 모듈에 대한 소감이나 질문을 짧게 남겨보세요. Vercel KV가 연결된 환경에서는 실제 KV에,
+        연결되지 않은 로컬 환경에서는 이 프로젝트의 기본 DB에 저장됩니다.
+    </p>
+
+    <textarea id="pc-input" class="form-control" rows="2" maxlength="280"
+              placeholder="이 페이지에 대한 의견을 남겨주세요"></textarea>
+    <div class="d-flex justify-content-between align-items-center mt-1">
+        <span id="pc-error" class="small text-danger"></span>
+        <span id="pc-counter" class="small text-muted">0 / 280자</span>
+    </div>
+    <div class="d-flex gap-2 mt-2">
+        <button type="button" id="pc-submit" class="btn btn-primary btn-sm" disabled>댓글 남기기</button>
+        <button type="button" id="pc-clear" class="btn btn-outline-secondary btn-sm">지우기</button>
+        <span class="small text-muted align-self-center">Enter로 등록 · Shift+Enter로 줄바꿈</span>
+    </div>
+
+    <hr>
+    <div id="pc-list" class="d-flex flex-column gap-2"></div>
+    <div id="pc-empty" class="text-muted small text-center py-3 d-none">
+        아직 댓글이 없어요. 첫 댓글을 남겨보세요!
+    </div>
+</div>
+
+{{ page_comments|json_script:"pc-initial-entries" }}
+<script>
+(function () {
+    function getCsrfToken() {
+        const match = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/);
+        return match ? decodeURIComponent(match[1]) : "";
+    }
+    const csrfToken = getCsrfToken();
+    const root = document.getElementById("pc-root");
+    const PAGE_KEY = root.dataset.pageKey;
+    const MAX_LENGTH = 280;
+
+    let entries = JSON.parse(document.getElementById("pc-initial-entries").textContent);
+
+    const input = document.getElementById("pc-input");
+    const counter = document.getElementById("pc-counter");
+    const errorEl = document.getElementById("pc-error");
+    const submitBtn = document.getElementById("pc-submit");
+    const clearBtn = document.getElementById("pc-clear");
+    const listEl = document.getElementById("pc-list");
+    const emptyEl = document.getElementById("pc-empty");
+
+    function relativeTime(iso) {
+        const diffMs = Date.now() - new Date(iso).getTime();
+        const min = Math.floor(diffMs / 60000);
+        if (min < 1) return "방금 전";
+        if (min < 60) return `${min}분 전`;
+        const hr = Math.floor(min / 60);
+        if (hr < 24) return `${hr}시간 전`;
+        return `${Math.floor(hr / 24)}일 전`;
+    }
+
+    function renderList() {
+        emptyEl.classList.toggle("d-none", entries.length > 0);
+        listEl.innerHTML = entries
+            .map(
+                (e) => `
+                <div class="p-2 bg-light border rounded d-flex justify-content-between align-items-start gap-2" data-entry-id="${e.id}">
+                    <div class="small">
+                        <div>${e.text.replace(/</g, "&lt;")}</div>
+                        <div class="text-muted" style="font-size:.75rem;">${relativeTime(e.created_at)}</div>
+                    </div>
+                    ${e.can_delete ? `<button type="button" class="btn btn-outline-danger btn-sm flex-shrink-0 pc-delete-btn" data-id="${e.id}">삭제</button>` : ""}
+                </div>`
+            )
+            .join("");
+    }
+
+    function updateCounterAndButton() {
+        const len = input.value.length;
+        counter.textContent = `${len} / ${MAX_LENGTH}자`;
+        counter.classList.toggle("text-danger", len > MAX_LENGTH);
+        submitBtn.disabled = len === 0 || len > MAX_LENGTH;
+    }
+
+    function showError(msg) {
+        errorEl.textContent = msg;
+    }
+
+    async function submitEntry() {
+        const text = input.value.trim();
+        if (!text) {
+            showError("문장을 입력해주세요.");
+            return;
+        }
+        if (text.length > MAX_LENGTH) {
+            showError(`${MAX_LENGTH}자를 초과했습니다 (현재 ${text.length}자).`);
+            return;
+        }
+
+        showError("");
+        submitBtn.disabled = true;
+        submitBtn.textContent = "저장 중...";
+
+        try {
+            const res = await fetch(`/comments/${PAGE_KEY}/create/`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "X-CSRFToken": csrfToken },
+                body: JSON.stringify({ text }),
+            });
+            const data = await res.json();
+
+            if (!res.ok) {
+                showError(data.error || "저장에 실패했습니다. 잠시 후 다시 시도해주세요.");
+                return;
+            }
+
+            entries = [data.entry, ...entries];
+            renderList();
+            input.value = "";
+            updateCounterAndButton();
+        } catch (err) {
+            showError("네트워크 오류로 저장하지 못했습니다. 잠시 후 다시 시도해주세요.");
+        } finally {
+            submitBtn.textContent = "댓글 남기기";
+            updateCounterAndButton();
+        }
+    }
+
+    listEl.addEventListener("click", async (ev) => {
+        const btn = ev.target.closest(".pc-delete-btn");
+        if (!btn) return;
+
+        if (btn.dataset.confirming !== "1") {
+            btn.dataset.confirming = "1";
+            btn.textContent = "정말요?";
+            btn.classList.add("btn-danger");
+            btn.classList.remove("btn-outline-danger");
+            setTimeout(() => {
+                if (btn.dataset.confirming === "1" && document.body.contains(btn)) {
+                    btn.dataset.confirming = "0";
+                    btn.textContent = "삭제";
+                    btn.classList.remove("btn-danger");
+                    btn.classList.add("btn-outline-danger");
+                }
+            }, 3000);
+            return;
+        }
+
+        const id = btn.dataset.id;
+        btn.disabled = true;
+        try {
+            const res = await fetch(`/comments/${PAGE_KEY}/${id}/delete/`, {
+                method: "POST",
+                headers: { "X-CSRFToken": csrfToken },
+            });
+            const data = await res.json();
+            if (res.ok && data.deleted) {
+                entries = entries.filter((e) => e.id !== id);
+                renderList();
+            }
+        } catch (err) {
+            /* 삭제 실패 시 버튼을 원래 상태로 되돌려 재시도할 수 있게 한다 */
+            btn.disabled = false;
+        }
+    });
+
+    input.addEventListener("input", () => {
+        showError("");
+        updateCounterAndButton();
+    });
+
+    input.addEventListener("keydown", (ev) => {
+        if (ev.key === "Enter" && !ev.shiftKey) {
+            ev.preventDefault();
+            if (!submitBtn.disabled) submitEntry();
+        }
+    });
+
+    submitBtn.addEventListener("click", submitEntry);
+    clearBtn.addEventListener("click", () => {
+        input.value = "";
+        showError("");
+        updateCounterAndButton();
+        input.focus();
+    });
+
+    renderList();
+    updateCounterAndButton();
+})();
+</script>
+{% endif %}

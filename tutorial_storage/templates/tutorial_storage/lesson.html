@@ -51,11 +51,19 @@
     </ul>
 </div>
 
-<h2 class="h6 mt-5">직접 해보기: 댓글 남기기 (문장 쓰기) 데모</h2>
+<h2 class="h6 mt-5">직접 해보기: 문장 쓰기 데모</h2>
 <p class="text-muted small">
-    아래 입력창에 한 문장을 남겨보세요. 이 텍스트는 <strong>Vercel KV처럼 짧은 텍스트를 저장하는 방식</strong>을 흉내낸 것이고,
+    아래 입력창에 한 문장을 남겨보세요. 이 텍스트는 <strong>Vercel KV에 짧은 텍스트를 저장하는 방식</strong>을 그대로 쓰고 있고,
     만약 여기에 이미지 첨부 기능을 추가한다면 그 파일은 <strong>Vercel Blob</strong>에 저장하는 구조가 일반적입니다 —
     즉 이 데모 하나가 두 스토리지의 역할 분담을 보여줍니다.
+</p>
+<p class="small mb-2">
+    {% if kv_configured %}
+    <span class="badge bg-success">🟢 실제 Vercel KV 연결됨</span> 지금 이 데모는 로컬 DB가 아니라 실제 Upstash Redis에 저장되고 있습니다.
+    {% else %}
+    <span class="badge bg-secondary">⚪ KV 미연결 (로컬 DB 사용 중)</span> 이 환경에는 KV_REST_API_URL/TOKEN이 없어 이 프로젝트의 기본 DB로 동작합니다.
+    Vercel 프로젝트에 KV(Upstash) 통합을 연결하면 코드 변경 없이 자동으로 실제 KV를 사용합니다.
+    {% endif %}
 </p>
 
 <div class="border rounded p-3 bg-light">
@@ -87,7 +95,7 @@
     </div>
 </div>
 
-{{ guestbook_entries|json_script:"gb-initial-entries" }}
+{{ sentence_entries|json_script:"gb-initial-entries" }}
 <script>
 (function () {
     /* 이 스크립트는 <main> 안, 즉 #csrf-form(문서 하단)보다 먼저 파싱되므로
@@ -97,11 +105,12 @@
         return match ? decodeURIComponent(match[1]) : "";
     }
     const csrfToken = getCsrfToken();
-    const MAX_LENGTH = {{ guestbook_max_length }};
+    const PAGE_KEY = "{{ sentence_page_key }}";
+    const MAX_LENGTH = {{ sentence_max_length }};
     const DAILY_QUOTA = 10000;
 
     let entries = JSON.parse(document.getElementById("gb-initial-entries").textContent);
-    let total = {{ guestbook_total }};
+    let total = {{ sentence_total }};
 
     const input = document.getElementById("gb-input");
     const counter = document.getElementById("gb-counter");
@@ -174,7 +183,7 @@
         submitBtn.textContent = "저장 중...";
 
         try {
-            const res = await fetch("{% url 'tutorial_storage:guestbook_create' %}", {
+            const res = await fetch(`/comments/${PAGE_KEY}/create/`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json", "X-CSRFToken": csrfToken },
                 body: JSON.stringify({ text }),
@@ -220,15 +229,15 @@
             return;
         }
 
-        const id = Number(btn.dataset.id);
+        const id = btn.dataset.id;
         btn.disabled = true;
         try {
-            const res = await fetch(`/tutorial/storage/guestbook/${id}/delete/`, {
+            const res = await fetch(`/comments/${PAGE_KEY}/${id}/delete/`, {
                 method: "POST",
                 headers: { "X-CSRFToken": csrfToken },
             });
             const data = await res.json();
-            if (res.ok) {
+            if (res.ok && data.deleted) {
                 entries = entries.filter((e) => e.id !== id);
                 total = data.total;
                 renderList();
