@@ -13,4 +13,5 @@ class TutorialToolsConfig(AppConfig):
             "tutorial_tools:lesson",
             app_label="tutorial_tools",
             order=15,
+            icon="🛠️",
         )

@@ -13,4 +13,5 @@ class TutorialMcpConfig(AppConfig):
             "tutorial_mcp:lesson",
             app_label="tutorial_mcp",
             order=30,
+            icon="🔌",
         )

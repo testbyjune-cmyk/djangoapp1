@@ -13,4 +13,5 @@ class TutorialAgentsConfig(AppConfig):
             "tutorial_agents:lesson",
             app_label="tutorial_agents",
             order=10,
+            icon="🤖",
         )

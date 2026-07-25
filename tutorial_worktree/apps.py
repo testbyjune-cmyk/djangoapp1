@@ -13,4 +13,5 @@ class TutorialWorktreeConfig(AppConfig):
             "tutorial_worktree:lesson",
             app_label="tutorial_worktree",
             order=20,
+            icon="🌳",
         )

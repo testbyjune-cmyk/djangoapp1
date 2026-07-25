@@ -6,27 +6,100 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Claude Tutorial{% endblock %}</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script>
+        /* 사이드바 접힘 상태를 렌더링 전에 적용해 깜빡임(FOUC)을 막는다. */
+        (function () {
+            try {
+                if (localStorage.getItem("sidebarCollapsed") === "1") {
+                    document.documentElement.classList.add("sidebar-collapsed");
+                }
+            } catch (e) { /* localStorage 접근 불가 시 그냥 펼친 상태로 둔다 */ }
+        })();
+    </script>
     <style>
         body { background-color: #f7f9fb; }
-        .navbar-brand { font-weight: 600; }
-        .content-area { max-width: 860px; }
-        @media (min-width: 768px) {
-            .sidebar { min-height: calc(100vh - 56px); }
+        .navbar-brand { font-weight: 600; letter-spacing: -.01em; }
+
+        .app-shell { display: flex; align-items: flex-start; }
+
+        .sidebar {
+            flex-shrink: 0;
+            min-width: 0;
+            width: 250px;
+            background-color: #fff;
+            border-right: 1px solid #e9ecef;
+            overflow: hidden;
+            transition: width .18s ease;
+            display: none;
         }
-        .sidebar .nav-link { color: #495057; border-radius: .375rem; }
-        .sidebar .nav-link:hover { background-color: #eef1f4; }
-        .sidebar .nav-link.active { color: #fff; background-color: var(--bs-primary); font-weight: 600; }
-        .sidebar-toggle { font-size: 1.4rem; line-height: 1; border: 0; background: transparent; }
-        .offcanvas .nav-link { color: #495057; border-radius: .375rem; }
-        .offcanvas .nav-link:hover { background-color: #eef1f4; }
-        .offcanvas .nav-link.active { color: #fff; background-color: var(--bs-primary); font-weight: 600; }
+        @media (min-width: 768px) {
+            .sidebar { display: block; min-height: calc(100vh - 56px); }
+        }
+        html.sidebar-collapsed .sidebar { width: 68px; }
+
+        .sidebar-inner { padding: 1.25rem .9rem; }
+        .sidebar-header {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: .75rem; padding: 0 .4rem;
+        }
+        .sidebar-heading {
+            font-size: .72rem; font-weight: 700; letter-spacing: .06em;
+            color: #98a2b3; text-transform: uppercase; white-space: nowrap;
+        }
+        html.sidebar-collapsed .sidebar-heading { display: none; }
+        html.sidebar-collapsed .sidebar-header { justify-content: center; }
+
+        .sidebar-collapse-btn {
+            border: 0; background: transparent; color: #98a2b3;
+            width: 1.75rem; height: 1.75rem; border-radius: .5rem;
+            display: inline-flex; align-items: center; justify-content: center;
+            font-size: 1rem; line-height: 1; flex-shrink: 0;
+        }
+        .sidebar-collapse-btn:hover { background-color: #f1f3f5; color: #495057; }
+        .sidebar-collapse-btn .chevron { display: inline-block; transition: transform .18s ease; }
+        html.sidebar-collapsed .sidebar-collapse-btn .chevron { transform: rotate(180deg); }
+
+        .sidebar-nav { display: flex; flex-direction: column; gap: .2rem; }
+        .sidebar-link {
+            display: flex; align-items: center; gap: .65rem;
+            padding: .55rem .65rem; border-radius: .55rem;
+            color: #495057; font-size: .92rem; white-space: nowrap; overflow: hidden;
+            border-left: 3px solid transparent;
+        }
+        .sidebar-link:hover { background-color: #f1f3f5; color: #212529; }
+        .sidebar-link.active {
+            background-color: rgba(13, 110, 253, .1);
+            color: var(--bs-primary);
+            font-weight: 600;
+            border-left-color: var(--bs-primary);
+        }
+        .sidebar-link-icon { font-size: 1.05rem; flex-shrink: 0; width: 1.3rem; text-align: center; }
+        .sidebar-link-text { overflow: hidden; text-overflow: ellipsis; }
+        html.sidebar-collapsed .sidebar-link { justify-content: center; padding-left: 0; padding-right: 0; border-left: none; }
+        html.sidebar-collapsed .sidebar-link.active { background-color: rgba(13, 110, 253, .14); }
+        html.sidebar-collapsed .sidebar-link-text { display: none; }
+
+        .app-main { flex: 1 1 auto; min-width: 0; }
+        .content-area { max-width: 860px; margin: 0 auto; padding: 1.75rem 1.25rem; }
+
+        .mobile-toggle { font-size: 1.4rem; line-height: 1; border: 0; background: transparent; }
+
+        .offcanvas .sidebar-link { color: #495057; }
+        .offcanvas .sidebar-link:hover { background-color: #f1f3f5; }
+        .offcanvas .sidebar-link.active {
+            background-color: rgba(13, 110, 253, .1);
+            color: var(--bs-primary);
+            font-weight: 600;
+            border-left-color: var(--bs-primary);
+        }
+
         code { color: #d6336c; }
     </style>
 </head>
 <body>
 <nav class="navbar navbar-dark bg-primary mb-0">
     <div class="container-fluid">
-        <button class="sidebar-toggle text-white d-md-none me-2" type="button"
+        <button class="mobile-toggle text-white d-md-none me-2" type="button"
                 data-bs-toggle="offcanvas" data-bs-target="#sidebarOffcanvas"
                 aria-controls="sidebarOffcanvas" aria-label="카테고리 메뉴 열기">
             ☰
@@ -47,32 +120,38 @@
         <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="닫기"></button>
     </div>
     <div class="offcanvas-body pt-0">
-        <nav class="nav flex-column gap-1">
+        <nav class="sidebar-nav">
             {% include "partials/_sidebar_links.html" %}
         </nav>
     </div>
 </div>
 
-<div class="container-fluid">
-    <div class="row">
-        <aside class="col-md-3 col-lg-2 sidebar bg-white border-end py-3 d-none d-md-block">
-            <div class="text-muted small text-uppercase fw-bold px-2 mb-2">카테고리</div>
-            <nav class="nav flex-column gap-1">
+<div class="app-shell">
+    <aside class="sidebar">
+        <div class="sidebar-inner">
+            <div class="sidebar-header">
+                <span class="sidebar-heading">카테고리</span>
+                <button type="button" id="sidebar-collapse-toggle" class="sidebar-collapse-btn"
+                        title="사이드바 접기/펼치기" aria-label="사이드바 접기/펼치기">
+                    <span class="chevron">‹</span>
+                </button>
+            </div>
+            <nav class="sidebar-nav">
                 {% include "partials/_sidebar_links.html" %}
             </nav>
-        </aside>
+        </div>
+    </aside>
 
-        <main class="col-12 col-md-9 col-lg-10 py-4">
-            <div class="content-area">
-                {% if messages %}
-                    {% for message in messages %}
-                        <div class="alert alert-{{ message.tags }}">{{ message }}</div>
-                    {% endfor %}
-                {% endif %}
-                {% block content %}{% endblock %}
-            </div>
-        </main>
-    </div>
+    <main class="app-main">
+        <div class="content-area">
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+            {% block content %}{% endblock %}
+        </div>
+    </main>
 </div>
 
 <form id="csrf-form" style="display:none">{% csrf_token %}</form>
@@ -104,6 +183,16 @@
             }
         });
     });
+
+    const collapseToggle = document.getElementById("sidebar-collapse-toggle");
+    if (collapseToggle) {
+        collapseToggle.addEventListener("click", () => {
+            const collapsed = document.documentElement.classList.toggle("sidebar-collapsed");
+            try {
+                localStorage.setItem("sidebarCollapsed", collapsed ? "1" : "0");
+            } catch (e) { /* localStorage 접근 불가 시 그냥 무시 */ }
+        });
+    }
 })();
 </script>
 </body>

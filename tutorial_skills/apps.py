@@ -13,4 +13,5 @@ class TutorialSkillsConfig(AppConfig):
             "tutorial_skills:lesson",
             app_label="tutorial_skills",
             order=25,
+            icon="🧩",
         )

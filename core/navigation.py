@@ -18,15 +18,20 @@ class NavItem:
     url_name: str
     app_label: str
     order: int = 0
+    icon: str = ""
 
 
 _registry: list[NavItem] = []
 
 
-def register(label: str, url_name: str, app_label: str, order: int = 0) -> None:
+def register(
+    label: str, url_name: str, app_label: str, order: int = 0, icon: str = ""
+) -> None:
     if any(item.url_name == url_name for item in _registry):
         return
-    _registry.append(NavItem(label=label, url_name=url_name, app_label=app_label, order=order))
+    _registry.append(
+        NavItem(label=label, url_name=url_name, app_label=app_label, order=order, icon=icon)
+    )
     _registry.sort(key=lambda item: item.order)
 
 
