@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     "tutorial_skills",
     "tutorial_mcp",
     "tutorial_managed_agents",
+    "tutorial_storage",
 ]
 
 MIDDLEWARE = [

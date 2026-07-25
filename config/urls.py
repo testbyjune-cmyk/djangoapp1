@@ -10,4 +10,5 @@ urlpatterns = [
     path("tutorial/skills/", include("tutorial_skills.urls")),
     path("tutorial/mcp/", include("tutorial_mcp.urls")),
     path("tutorial/managed-agents/", include("tutorial_managed_agents.urls")),
+    path("tutorial/storage/", include("tutorial_storage.urls")),
 ]
